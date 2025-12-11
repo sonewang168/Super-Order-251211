@@ -269,6 +269,16 @@
         .modal-body { padding: 16px; max-height: 60vh; overflow-y: auto; }
         .modal-footer { padding: 16px; border-top: 1px solid var(--border); }
 
+        /* ========== Image Lightbox ========== */
+        .lightbox { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 3000; padding: 20px; }
+        .lightbox.show { display: flex; }
+        .lightbox-header { position: absolute; top: 0; left: 0; right: 0; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%); }
+        .lightbox-title { font-size: 16px; font-weight: 600; color: #fff; }
+        .lightbox-close { width: 44px; height: 44px; border: none; background: rgba(255,255,255,0.1); color: #fff; font-size: 24px; cursor: pointer; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .lightbox-close:hover { background: rgba(255,255,255,0.2); transform: scale(1.1); }
+        .lightbox-image { max-width: 90%; max-height: 80vh; object-fit: contain; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .lightbox-hint { position: absolute; bottom: 20px; color: rgba(255,255,255,0.5); font-size: 12px; }
+
         /* ========== 自訂風格 Modal ========== */
         .custom-style-list { max-height: 200px; overflow-y: auto; margin-bottom: 12px; }
         .custom-style-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-input); border-radius: 8px; margin-bottom: 8px; }
@@ -781,6 +791,16 @@
                 <p style="color:var(--text-dim);">可同時選擇多種輸出：本機下載、Google 相簿、Google 文件、LINE 通知。</p>
             </div>
         </div>
+    </div>
+
+    <!-- Image Lightbox -->
+    <div class="lightbox" id="imageLightbox" onclick="if(event.target===this)closeLightbox()">
+        <div class="lightbox-header">
+            <span class="lightbox-title" id="lightboxTitle"></span>
+            <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+        </div>
+        <img class="lightbox-image" id="lightboxImage" src="" alt="Preview">
+        <div class="lightbox-hint">點擊空白處或 ✕ 關閉</div>
     </div>
 
     <style>
@@ -1547,8 +1567,17 @@ Requirements:
 
         function viewImage(index) {
             const img = generatedImages[index];
-            const win = window.open();
-            win.document.write(`<img src="data:image/png;base64,${img.data}" style="max-width:100%;">`);
+            const lightbox = document.getElementById('imageLightbox');
+            const lightboxImg = document.getElementById('lightboxImage');
+            const lightboxTitle = document.getElementById('lightboxTitle');
+            
+            lightboxImg.src = `data:image/png;base64,${img.data}`;
+            lightboxTitle.textContent = img.style;
+            lightbox.classList.add('show');
+        }
+
+        function closeLightbox() {
+            document.getElementById('imageLightbox').classList.remove('show');
         }
 
         function clearResults() {

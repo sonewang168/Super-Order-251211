@@ -1,0 +1,1699 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0f">
+    <title>🎨 超級指令插畫生成器 Pro v1.0</title>
+    
+    <!-- Google API -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=Orbitron:wght@400;700;900&display=swap');
+        
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-card-hover: #1a1a25;
+            --bg-input: #0d0d14;
+            --cyan: #00f5ff;
+            --cyan-glow: rgba(0, 245, 255, 0.3);
+            --purple: #a855f7;
+            --purple-glow: rgba(168, 85, 247, 0.3);
+            --pink: #ff00ff;
+            --pink-glow: rgba(255, 0, 255, 0.2);
+            --gold: #ffd700;
+            --gold-glow: rgba(255, 215, 0, 0.3);
+            --emerald: #00ff88;
+            --emerald-glow: rgba(0, 255, 136, 0.3);
+            --orange: #ff8800;
+            --red: #ff3366;
+            --text-light: #e2e8f0;
+            --text-dim: #94a3b8;
+            --text-muted: #64748b;
+            --border: #2a2a3a;
+            --nav-height: 70px;
+            --header-height: 56px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; overflow: hidden; touch-action: manipulation; }
+        body { font-family: 'Noto Sans TC', sans-serif; background: var(--bg-dark); color: var(--text-light); line-height: 1.6; }
+
+        /* ========== 開機動畫 ========== */
+        /* ========== 開機動畫 - 科技冷光風格 ========== */
+        .splash-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #050508 0%, #0a0a12 50%, #050508 100%);
+            display: flex; align-items: center; justify-content: center; z-index: 9999;
+            transition: opacity 0.8s ease, transform 0.8s ease; overflow: hidden;
+        }
+        .splash-screen::before {
+            content: ''; position: absolute; inset: 0;
+            background: 
+                radial-gradient(ellipse at 50% 0%, rgba(0, 245, 255, 0.08) 0%, transparent 50%),
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 245, 255, 0.02) 2px, rgba(0, 245, 255, 0.02) 4px);
+            pointer-events: none;
+        }
+        .splash-screen.fade-out { opacity: 0; transform: scale(1.1); pointer-events: none; }
+        .splash-content { text-align: center; position: relative; z-index: 1; }
+        
+        /* 超字容器 */
+        .splash-icon-wrap { position: relative; width: 150px; height: 150px; margin: 0 auto 24px; }
+        
+        /* 旋轉光環 */
+        .splash-ring { position: absolute; inset: 0; border: 2px solid transparent; border-radius: 50%; }
+        .splash-ring-1 { border-top-color: var(--cyan); border-right-color: rgba(0,245,255,0.2); animation: ringSpin 2s linear infinite; box-shadow: 0 0 20px rgba(0,245,255,0.3); }
+        .splash-ring-2 { inset: 12px; border-top-color: var(--purple); border-left-color: rgba(168,85,247,0.2); animation: ringSpin 2.5s linear infinite reverse; box-shadow: 0 0 15px rgba(168,85,247,0.3); }
+        .splash-ring-3 { inset: 24px; border-bottom-color: var(--pink); border-right-color: rgba(255,0,255,0.2); animation: ringSpin 3s linear infinite; box-shadow: 0 0 10px rgba(255,0,255,0.3); }
+        @keyframes ringSpin { to { transform: rotate(360deg); } }
+        
+        /* 超字核心 */
+        .splash-icon {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 58px; font-weight: 900; font-family: 'Microsoft YaHei', sans-serif;
+            color: transparent;
+            background: linear-gradient(135deg, #00f5ff 0%, #a855f7 50%, #00f5ff 100%);
+            background-size: 200% 200%;
+            -webkit-background-clip: text; background-clip: text;
+            animation: textShine 2s linear infinite, textPulse 3s ease-in-out infinite;
+            filter: drop-shadow(0 0 25px rgba(0,245,255,0.9)) drop-shadow(0 0 50px rgba(0,245,255,0.4));
+        }
+        @keyframes textShine { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        @keyframes textPulse { 0%,100% { filter: drop-shadow(0 0 25px rgba(0,245,255,0.9)) drop-shadow(0 0 50px rgba(0,245,255,0.4)); } 50% { filter: drop-shadow(0 0 35px rgba(168,85,247,1)) drop-shadow(0 0 70px rgba(168,85,247,0.5)); } }
+        
+        /* 掃描線 */
+        .splash-scan { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; }
+        .splash-scan::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(0,245,255,0.15) 50%, transparent 60%); animation: scanMove 2s linear infinite; }
+        @keyframes scanMove { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
+        
+        /* 粒子 */
+        .splash-dots { position: absolute; inset: 0; }
+        .splash-dot { position: absolute; width: 4px; height: 4px; background: var(--cyan); border-radius: 50%; animation: dotPulse 2s ease-in-out infinite; }
+        .splash-dot:nth-child(1) { top: 0; left: 50%; transform: translateX(-50%); }
+        .splash-dot:nth-child(2) { top: 50%; right: 0; transform: translateY(-50%); animation-delay: 0.5s; background: var(--purple); }
+        .splash-dot:nth-child(3) { bottom: 0; left: 50%; transform: translateX(-50%); animation-delay: 1s; }
+        .splash-dot:nth-child(4) { top: 50%; left: 0; transform: translateY(-50%); animation-delay: 1.5s; background: var(--purple); }
+        @keyframes dotPulse { 0%,100% { opacity: 0.3; transform: translateX(-50%) scale(1); } 50% { opacity: 1; transform: translateX(-50%) scale(1.8); } }
+        
+        .splash-title { font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 900; background: linear-gradient(90deg, var(--cyan), var(--purple), var(--cyan)); background-size: 200% 100%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; animation: titleShine 3s linear infinite; }
+        @keyframes titleShine { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .splash-subtitle { font-size: 12px; color: var(--cyan); letter-spacing: 3px; opacity: 0.8; }
+        .splash-progress { width: 180px; height: 2px; background: rgba(0,245,255,0.1); border-radius: 2px; margin: 28px auto 0; overflow: hidden; border: 1px solid rgba(0,245,255,0.2); }
+        .splash-progress-bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--purple), var(--cyan)); box-shadow: 0 0 10px var(--cyan); animation: progressLoad 2.5s ease forwards; }
+        @keyframes progressLoad { 0% { width: 0; } 100% { width: 100%; } }
+
+        /* ========== APP 容器 ========== */
+        .app-container { height: 100%; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+
+        /* ========== 頂部標題 ========== */
+        .app-header { height: var(--header-height); background: linear-gradient(135deg, rgba(0, 245, 255, 0.08), rgba(168, 85, 247, 0.08)); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0; }
+        .app-logo { display: flex; align-items: center; gap: 10px; }
+        .app-logo-icon { font-size: 26px; }
+        .app-logo-text { font-family: 'Orbitron', sans-serif; font-size: 13px; font-weight: 700; background: linear-gradient(135deg, var(--cyan), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .header-btn { width: 38px; height: 38px; border: none; background: rgba(255,255,255,0.05); border-radius: 10px; color: var(--text-dim); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .header-btn:active { transform: scale(0.95); }
+
+        /* ========== 內容區 ========== */
+        .app-content { flex: 1; overflow: hidden; position: relative; }
+        .page { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow-y: auto; padding: 16px; padding-bottom: calc(var(--nav-height) + 20px); display: none; -webkit-overflow-scrolling: touch; }
+        .page.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ========== 底部導航 ========== */
+        .bottom-nav { height: var(--nav-height); background: var(--bg-card); border-top: 1px solid var(--border); display: flex; flex-shrink: 0; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; position: relative; transition: color 0.3s; }
+        .nav-item::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 0; height: 3px; background: linear-gradient(90deg, var(--cyan), var(--purple)); border-radius: 0 0 3px 3px; transition: width 0.3s; }
+        .nav-item.active { color: var(--cyan); }
+        .nav-item.active::before { width: 36px; }
+        .nav-icon { font-size: 22px; }
+        .nav-label { font-size: 10px; font-weight: 500; }
+
+        /* ========== 卡片 ========== */
+        .card { background: var(--bg-card); border-radius: 16px; padding: 18px; margin-bottom: 14px; border: 1px solid var(--border); }
+        .card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .card-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        .card-icon.cyan { background: var(--cyan-glow); }
+        .card-icon.purple { background: var(--purple-glow); }
+        .card-icon.pink { background: var(--pink-glow); }
+        .card-icon.gold { background: var(--gold-glow); }
+        .card-icon.emerald { background: var(--emerald-glow); }
+        .card-title { font-size: 15px; font-weight: 600; }
+        .card-subtitle { font-size: 11px; color: var(--text-dim); }
+
+        /* ========== 表單 ========== */
+        .form-group { margin-bottom: 14px; }
+        .form-label { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 500; color: var(--text-dim); margin-bottom: 8px; }
+        .form-input, .form-textarea, .form-select { width: 100%; padding: 12px 14px; background: var(--bg-input); border: 2px solid var(--border); border-radius: 10px; color: var(--text-light); font-size: 14px; font-family: inherit; transition: all 0.3s; -webkit-appearance: none; }
+        .form-input:focus, .form-textarea:focus, .form-select:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 3px var(--cyan-glow); }
+        .form-textarea { min-height: 100px; resize: vertical; line-height: 1.5; }
+        .form-select { cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 40px; }
+        .form-hint { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+        /* ========== AI 建議按鈕 ========== */
+        .ai-suggest-btn { padding: 6px 12px; background: linear-gradient(135deg, var(--purple), var(--pink)); border: none; border-radius: 8px; color: white; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+        .ai-suggest-btn:active { transform: scale(0.95); }
+        .ai-suggest-btn .spinner { display: none; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .ai-suggest-btn.loading .spinner { display: block; }
+        .ai-suggest-btn.loading span { display: none; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ========== 風格選擇器 ========== */
+        .style-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; max-height: 280px; overflow-y: auto; padding: 4px; }
+        .style-item { position: relative; padding: 10px 6px; background: var(--bg-input); border: 2px solid var(--border); border-radius: 10px; cursor: pointer; text-align: center; transition: all 0.2s; }
+        .style-item:hover { border-color: var(--purple); background: rgba(168, 85, 247, 0.1); }
+        .style-item.selected { border-color: var(--cyan); background: rgba(0, 245, 255, 0.15); }
+        .style-item.selected::after { content: '✓'; position: absolute; top: 4px; right: 4px; width: 16px; height: 16px; background: var(--cyan); border-radius: 50%; font-size: 10px; color: var(--bg-dark); display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .style-icon { font-size: 24px; margin-bottom: 4px; }
+        .style-name { font-size: 10px; color: var(--text-light); line-height: 1.2; }
+        .style-custom { border-style: dashed; }
+        .style-custom .style-icon { opacity: 0.5; }
+
+        /* ========== 數量選擇器 ========== */
+        .quantity-row { display: flex; align-items: center; gap: 12px; }
+        .qty-btn { width: 40px; height: 40px; border: 2px solid var(--border); background: var(--bg-input); border-radius: 10px; color: var(--text-light); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .qty-btn:hover { border-color: var(--cyan); }
+        .qty-btn:active { transform: scale(0.95); }
+        .qty-display { flex: 1; text-align: center; }
+        .qty-value { font-family: 'Orbitron', sans-serif; font-size: 32px; font-weight: 700; color: var(--cyan); }
+        .qty-label { font-size: 12px; color: var(--text-dim); }
+
+        /* ========== 模型選擇 ========== */
+        .model-options { display: flex; flex-direction: column; gap: 8px; }
+        .model-option { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-input); border: 2px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.2s; }
+        .model-option:hover { border-color: var(--purple); }
+        .model-option.selected { border-color: var(--cyan); background: rgba(0, 245, 255, 0.1); }
+        .model-option input { display: none; }
+        .model-radio { width: 20px; height: 20px; border: 2px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .model-option.selected .model-radio { border-color: var(--cyan); }
+        .model-option.selected .model-radio::after { content: ''; width: 10px; height: 10px; background: var(--cyan); border-radius: 50%; }
+        .model-info { flex: 1; }
+        .model-name { font-size: 14px; font-weight: 600; }
+        .model-desc { font-size: 11px; color: var(--text-dim); }
+        .model-badge { padding: 3px 8px; background: var(--purple-glow); border-radius: 6px; font-size: 10px; color: var(--purple); font-weight: 600; }
+        .model-badge.new { background: var(--emerald-glow); color: var(--emerald); }
+        .model-badge.best { background: var(--gold-glow); color: var(--gold); }
+
+        /* ========== 輸出選項 ========== */
+        .output-options { display: flex; flex-direction: column; gap: 10px; }
+        .output-option { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-input); border: 2px solid var(--border); border-radius: 10px; cursor: pointer; }
+        .output-option.selected { border-color: var(--emerald); background: rgba(0, 255, 136, 0.1); }
+        .output-checkbox { width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--bg-dark); flex-shrink: 0; }
+        .output-option.selected .output-checkbox { background: var(--emerald); border-color: var(--emerald); }
+        .output-icon { font-size: 24px; }
+        .output-info { flex: 1; }
+        .output-name { font-size: 13px; font-weight: 600; }
+        .output-desc { font-size: 11px; color: var(--text-dim); }
+
+        /* ========== 按鈕 ========== */
+        .btn { width: 100%; padding: 14px 20px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s; }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary { background: linear-gradient(135deg, var(--cyan), var(--purple)); color: white; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background: var(--bg-card-hover); color: var(--text-light); border: 2px solid var(--border); }
+        .btn-success { background: linear-gradient(135deg, var(--emerald), #059669); color: white; }
+        .btn-danger { background: var(--red); color: white; }
+        .btn-sm { padding: 10px 16px; font-size: 13px; }
+
+        /* ========== 生成進度 ========== */
+        .generation-progress { display: none; }
+        .generation-progress.active { display: block; }
+        .progress-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .progress-title { font-size: 14px; font-weight: 600; }
+        .progress-count { font-size: 13px; color: var(--cyan); }
+        .progress-bar-container { height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--purple), var(--pink)); border-radius: 4px; transition: width 0.5s ease; }
+        .progress-status { font-size: 12px; color: var(--text-dim); text-align: center; margin-bottom: 16px; }
+        .progress-log { max-height: 150px; overflow-y: auto; background: var(--bg-input); border-radius: 10px; padding: 12px; font-size: 11px; font-family: monospace; }
+        .log-item { padding: 4px 0; border-bottom: 1px solid var(--border); }
+        .log-item:last-child { border-bottom: none; }
+        .log-item.success { color: var(--emerald); }
+        .log-item.error { color: var(--red); }
+        .log-item.info { color: var(--cyan); }
+
+        /* ========== 結果展示 ========== */
+        .results-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .result-item { background: var(--bg-input); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+        .result-image { width: 100%; aspect-ratio: 1; object-fit: cover; background: var(--bg-card); }
+        .result-info { padding: 10px; }
+        .result-style { font-size: 11px; color: var(--cyan); font-weight: 600; margin-bottom: 4px; }
+        .result-actions { display: flex; gap: 6px; }
+        .result-btn { flex: 1; padding: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text-dim); font-size: 16px; cursor: pointer; }
+        .result-btn:hover { background: var(--cyan-glow); color: var(--cyan); }
+
+        /* ========== 設定頁 ========== */
+        .setting-item { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--border); }
+        .setting-item:last-child { border-bottom: none; }
+        .setting-info { flex: 1; }
+        .setting-name { font-size: 14px; font-weight: 500; }
+        .setting-desc { font-size: 11px; color: var(--text-dim); }
+        .setting-value { font-size: 12px; color: var(--cyan); }
+
+        /* ========== Toast ========== */
+        .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--bg-card); border: 1px solid var(--border); padding: 12px 20px; border-radius: 12px; font-size: 13px; z-index: 1000; opacity: 0; transition: all 0.3s; pointer-events: none; }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.success { border-color: var(--emerald); color: var(--emerald); }
+        .toast.error { border-color: var(--red); color: var(--red); }
+
+        /* ========== Modal ========== */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: var(--bg-card); border-radius: 20px; width: 100%; max-width: 400px; max-height: 80vh; overflow: hidden; }
+        .modal-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .modal-title { font-size: 16px; font-weight: 600; }
+        .modal-close { width: 32px; height: 32px; border: none; background: transparent; color: var(--text-dim); font-size: 20px; cursor: pointer; border-radius: 8px; }
+        .modal-body { padding: 16px; max-height: 60vh; overflow-y: auto; }
+        .modal-footer { padding: 16px; border-top: 1px solid var(--border); }
+
+        /* ========== 自訂風格 Modal ========== */
+        .custom-style-list { max-height: 200px; overflow-y: auto; margin-bottom: 12px; }
+        .custom-style-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-input); border-radius: 8px; margin-bottom: 8px; }
+        .custom-style-item .style-icon { font-size: 20px; }
+        .custom-style-item .style-text { flex: 1; font-size: 12px; }
+        .custom-style-item .delete-btn { width: 28px; height: 28px; border: none; background: rgba(255, 51, 102, 0.2); color: var(--red); border-radius: 6px; cursor: pointer; font-size: 14px; }
+
+        /* ========== 輸入框 + 顯示/隱藏按鈕 ========== */
+        .input-with-toggle { position: relative; display: flex; align-items: center; }
+        .input-with-toggle .form-input { padding-right: 50px; }
+        .toggle-visibility { position: absolute; right: 8px; width: 36px; height: 36px; border: none; background: var(--bg-card); border-radius: 8px; color: var(--text-dim); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .toggle-visibility:hover { background: var(--cyan-glow); color: var(--cyan); }
+        .toggle-visibility.active { background: var(--cyan); color: var(--bg-dark); }
+
+        /* ========== 按鈕群組 ========== */
+        .btn-group { display: flex; gap: 8px; margin-top: 12px; }
+        .btn-group .btn { flex: 1; }
+        .btn-success { background: linear-gradient(135deg, var(--emerald), #059669); color: white; }
+        .btn-danger { background: linear-gradient(135deg, var(--red), #dc2626); color: white; }
+
+        /* ========== 欄位狀態顯示 ========== */
+        .field-status { margin-top: 10px; padding: 8px 12px; border-radius: 8px; font-size: 12px; display: none; }
+        .field-status.show { display: block; animation: fadeIn 0.3s ease; }
+        .field-status.success { background: rgba(0, 255, 136, 0.1); color: var(--emerald); border: 1px solid rgba(0, 255, 136, 0.3); }
+        .field-status.error { background: rgba(255, 51, 102, 0.1); color: var(--red); border: 1px solid rgba(255, 51, 102, 0.3); }
+        .field-status.info { background: rgba(0, 245, 255, 0.1); color: var(--cyan); border: 1px solid rgba(0, 245, 255, 0.3); }
+        .field-status.warning { background: rgba(255, 215, 0, 0.1); color: var(--gold); border: 1px solid rgba(255, 215, 0, 0.3); }
+
+        /* 隱藏 scrollbar */
+        .style-grid::-webkit-scrollbar, .progress-log::-webkit-scrollbar, .custom-style-list::-webkit-scrollbar { width: 4px; }
+        .style-grid::-webkit-scrollbar-track, .progress-log::-webkit-scrollbar-track { background: transparent; }
+        .style-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <!-- ========== 開機動畫 ========== -->
+    <div class="splash-screen" id="splashScreen">
+        <div class="splash-content">
+            <div class="splash-icon-wrap">
+                <!-- 旋轉光環 -->
+                <div class="splash-ring splash-ring-1"></div>
+                <div class="splash-ring splash-ring-2"></div>
+                <div class="splash-ring splash-ring-3"></div>
+                <!-- 掃描線 -->
+                <div class="splash-scan"></div>
+                <!-- 超字核心 -->
+                <div class="splash-icon">超</div>
+                <!-- 粒子 -->
+                <div class="splash-dots">
+                    <div class="splash-dot"></div>
+                    <div class="splash-dot"></div>
+                    <div class="splash-dot"></div>
+                    <div class="splash-dot"></div>
+                </div>
+            </div>
+            <div class="splash-title">SUPER INSTRUCTION</div>
+            <div class="splash-subtitle">超級指令插畫生成器 Pro</div>
+            <div class="splash-progress">
+                <div class="splash-progress-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== APP 主體 ========== -->
+    <div class="app-container">
+        <!-- 頂部標題 -->
+        <header class="app-header">
+            <div class="app-logo">
+                <span class="app-logo-icon">🎨</span>
+                <span class="app-logo-text">SUPER INSTRUCTION</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button class="header-btn" onclick="showHelpModal()">❓</button>
+                <button class="header-btn" onclick="switchPage('settings')">⚙️</button>
+            </div>
+        </header>
+
+        <!-- 內容區 -->
+        <main class="app-content">
+            <!-- ===== 首頁：生成設定 ===== -->
+            <div class="page active" id="page-home">
+                <!-- 主體描述 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon cyan">✏️</div>
+                        <div>
+                            <div class="card-title">主體描述</div>
+                            <div class="card-subtitle">描述你想生成的插圖內容</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="form-label">
+                            <span>插圖內容</span>
+                            <button class="ai-suggest-btn" id="aiSuggestBtn" onclick="getAISuggestion()">
+                                <div class="spinner"></div>
+                                <span>✨ AI 建議</span>
+                            </button>
+                        </div>
+                        <textarea class="form-textarea" id="subjectInput" placeholder="例如：一隻戴著復古飛行員風鏡的柯基犬，坐在一架舊式雙翼飛機的開放式駕駛艙裡，背景是雲海和夕陽。"></textarea>
+                        <div class="form-hint">💡 描述越詳細，生成效果越好</div>
+                    </div>
+                </div>
+
+                <!-- 風格選擇 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon purple">🎭</div>
+                        <div>
+                            <div class="card-title">選擇風格</div>
+                            <div class="card-subtitle">已選擇 <span id="selectedStyleCount">0</span> 種風格</div>
+                        </div>
+                    </div>
+                    <div class="style-grid" id="styleGrid">
+                        <!-- 動態生成 -->
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="showCustomStyleModal()">➕ 新增自訂風格</button>
+                </div>
+
+                <!-- 生成數量 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon gold">🔢</div>
+                        <div>
+                            <div class="card-title">生成數量</div>
+                            <div class="card-subtitle">每種風格生成的圖片數</div>
+                        </div>
+                    </div>
+                    <div class="quantity-row">
+                        <button class="qty-btn" onclick="adjustQuantity(-1)">−</button>
+                        <div class="qty-display">
+                            <div class="qty-value" id="quantityValue">1</div>
+                            <div class="qty-label">張 / 風格</div>
+                        </div>
+                        <button class="qty-btn" onclick="adjustQuantity(1)">+</button>
+                    </div>
+                    <div class="form-hint" style="text-align:center;margin-top:10px;">
+                        📊 總計將生成 <strong id="totalImages">0</strong> 張圖片
+                    </div>
+                </div>
+
+                <!-- AI 模型選擇 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon pink">🤖</div>
+                        <div>
+                            <div class="card-title">AI 模型</div>
+                            <div class="card-subtitle">選擇圖片生成引擎</div>
+                        </div>
+                    </div>
+                    <div class="model-options" id="modelOptions">
+                        <label class="model-option selected" onclick="selectModel('gemini-2.0-flash')">
+                            <input type="radio" name="model" value="gemini-2.0-flash" checked>
+                            <div class="model-radio"></div>
+                            <div class="model-info">
+                                <div class="model-name">Gemini 2.0 Flash</div>
+                                <div class="model-desc">快速生成，適合大量圖片</div>
+                            </div>
+                            <span class="model-badge">快速</span>
+                        </label>
+                        <label class="model-option" onclick="selectModel('gemini-2.5-flash')">
+                            <input type="radio" name="model" value="gemini-2.5-flash">
+                            <div class="model-radio"></div>
+                            <div class="model-info">
+                                <div class="model-name">Gemini 2.5 Flash</div>
+                                <div class="model-desc">更高品質，細節更豐富</div>
+                            </div>
+                            <span class="model-badge new">NEW</span>
+                        </label>
+                        <label class="model-option" onclick="selectModel('imagen-4')">
+                            <input type="radio" name="model" value="imagen-4">
+                            <div class="model-radio"></div>
+                            <div class="model-info">
+                                <div class="model-name">Imagen 4</div>
+                                <div class="model-desc">Google 最強圖像模型</div>
+                            </div>
+                            <span class="model-badge best">最佳</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 輸出選項 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon emerald">📤</div>
+                        <div>
+                            <div class="card-title">輸出選項</div>
+                            <div class="card-subtitle">選擇圖片的輸出方式</div>
+                        </div>
+                    </div>
+                    <div class="output-options">
+                        <div class="output-option selected" onclick="toggleOutput(this, 'download')">
+                            <div class="output-checkbox">✓</div>
+                            <div class="output-icon">💾</div>
+                            <div class="output-info">
+                                <div class="output-name">本機下載</div>
+                                <div class="output-desc">直接下載到裝置</div>
+                            </div>
+                        </div>
+                        <div class="output-option" onclick="toggleOutput(this, 'photos')">
+                            <div class="output-checkbox">✓</div>
+                            <div class="output-icon">📷</div>
+                            <div class="output-info">
+                                <div class="output-name">Google 相簿</div>
+                                <div class="output-desc">上傳到「超級指令插畫生成區」</div>
+                            </div>
+                        </div>
+                        <div class="output-option" onclick="toggleOutput(this, 'docs')">
+                            <div class="output-checkbox">✓</div>
+                            <div class="output-icon">📚</div>
+                            <div class="output-info">
+                                <div class="output-name">插畫圖鑑</div>
+                                <div class="output-desc">建立「超級指令插畫圖鑑」Doc</div>
+                            </div>
+                        </div>
+                        <div class="output-option" onclick="toggleOutput(this, 'line')">
+                            <div class="output-checkbox">✓</div>
+                            <div class="output-icon">💬</div>
+                            <div class="output-info">
+                                <div class="output-name">LINE 通知</div>
+                                <div class="output-desc">完成後發送通知含連結</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 開始生成按鈕 -->
+                <button class="btn btn-primary" id="generateBtn" onclick="startGeneration()">
+                    🚀 開始生成
+                </button>
+
+                <!-- 生成進度 -->
+                <div class="card generation-progress" id="generationProgress">
+                    <div class="progress-header">
+                        <span class="progress-title">🎨 生成中...</span>
+                        <span class="progress-count" id="progressCount">0 / 0</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-status" id="progressStatus">準備中...</div>
+                    <div class="progress-log" id="progressLog"></div>
+                    <button class="btn btn-danger btn-sm" style="margin-top:12px;" onclick="cancelGeneration()">⏹️ 取消生成</button>
+                </div>
+            </div>
+
+            <!-- ===== 結果頁 ===== -->
+            <div class="page" id="page-results">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon cyan">🖼️</div>
+                        <div>
+                            <div class="card-title">生成結果</div>
+                            <div class="card-subtitle" id="resultsSubtitle">共 0 張圖片</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-bottom:14px;">
+                        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="downloadAllImages()">💾 全部下載</button>
+                        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="clearResults()">🗑️ 清除結果</button>
+                    </div>
+                    <div class="results-grid" id="resultsGrid">
+                        <div style="grid-column:span 2;text-align:center;padding:40px;color:var(--text-muted);">
+                            尚無生成結果
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== 設定頁 ===== -->
+            <div class="page" id="page-settings">
+                <!-- API Key 設定 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon purple">🔑</div>
+                        <div>
+                            <div class="card-title">Gemini API Key</div>
+                            <div class="card-subtitle">圖片生成必備</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="form-label">API Key</div>
+                        <div class="input-with-toggle">
+                            <input type="password" class="form-input" id="apiKeyInput" placeholder="輸入 Gemini API Key">
+                            <button class="toggle-visibility" onclick="toggleVisibility('apiKeyInput', this)">👁️</button>
+                        </div>
+                        <div class="form-hint">💡 前往 <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--cyan);">Google AI Studio</a> 取得</div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-success btn-sm" onclick="saveField('apiKey')">💾 儲存</button>
+                        <button class="btn btn-danger btn-sm" onclick="clearField('apiKey')">🗑️ 清除</button>
+                    </div>
+                    <div class="field-status" id="apiKeyStatus"></div>
+                </div>
+
+                <!-- GAS 設定 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon cyan">☁️</div>
+                        <div>
+                            <div class="card-title">GAS 後端設定</div>
+                            <div class="card-subtitle">雲端功能必備</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="form-label">GAS Web App URL</div>
+                        <div class="input-with-toggle">
+                            <input type="password" class="form-input" id="gasUrlInput" placeholder="https://script.google.com/macros/s/xxx/exec">
+                            <button class="toggle-visibility" onclick="toggleVisibility('gasUrlInput', this)">👁️</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="form-label">安全密鑰</div>
+                        <div class="input-with-toggle">
+                            <input type="password" class="form-input" id="gasSecretInput" placeholder="輸入安全密鑰">
+                            <button class="toggle-visibility" onclick="toggleVisibility('gasSecretInput', this)">👁️</button>
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-success btn-sm" onclick="saveField('gas')">💾 儲存</button>
+                        <button class="btn btn-danger btn-sm" onclick="clearField('gas')">🗑️ 清除</button>
+                        <button class="btn btn-secondary btn-sm" onclick="testGasConnection()">🔗 測試連線</button>
+                    </div>
+                    <div class="field-status" id="gasStatus"></div>
+                </div>
+
+                <!-- LINE 設定 (選用) -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon emerald">💬</div>
+                        <div>
+                            <div class="card-title">LINE 通知設定</div>
+                            <div class="card-subtitle">選用 - 由 GAS 後端處理</div>
+                        </div>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-dim);padding:12px;background:var(--bg-input);border-radius:10px;margin-bottom:12px;">
+                        ℹ️ LINE 通知設定在 GAS 後端的 CONFIG 區塊中設定：
+                        <br>• LINE_CHANNEL_ACCESS_TOKEN
+                        <br>• LINE_USER_ID
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="testLineNotification()">📨 測試 LINE 通知</button>
+                    <div class="field-status" id="lineStatus"></div>
+                </div>
+
+                <!-- Google OAuth 設定 (進階) -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon gold">🔐</div>
+                        <div>
+                            <div class="card-title">Google OAuth</div>
+                            <div class="card-subtitle">進階 - Google 相簿直連</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="form-label">Google OAuth Client ID</div>
+                        <div class="input-with-toggle">
+                            <input type="password" class="form-input" id="googleClientId" placeholder="xxx.apps.googleusercontent.com">
+                            <button class="toggle-visibility" onclick="toggleVisibility('googleClientId', this)">👁️</button>
+                        </div>
+                        <div class="form-hint">⚠️ 目前透過 GAS + Drive 實現，此設定為預留</div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-success btn-sm" onclick="saveField('google')">💾 儲存</button>
+                        <button class="btn btn-danger btn-sm" onclick="clearField('google')">🗑️ 清除</button>
+                    </div>
+                    <div class="field-status" id="googleStatus"></div>
+                </div>
+
+                <!-- 資料管理 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon pink">🗃️</div>
+                        <div>
+                            <div class="card-title">資料管理</div>
+                            <div class="card-subtitle">管理本機儲存資料</div>
+                        </div>
+                    </div>
+                    <div class="btn-group" style="flex-direction:column;gap:10px;">
+                        <button class="btn btn-secondary btn-sm" onclick="exportSettings()">📤 匯出所有設定</button>
+                        <button class="btn btn-secondary btn-sm" onclick="importSettings()">📥 匯入設定</button>
+                        <button class="btn btn-danger btn-sm" onclick="clearAllSettings()">⚠️ 清除所有資料</button>
+                    </div>
+                </div>
+
+                <!-- 關於 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon gold">ℹ️</div>
+                        <div>
+                            <div class="card-title">關於</div>
+                            <div class="card-subtitle">超級指令插畫生成器 Pro</div>
+                        </div>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-dim);line-height:1.8;">
+                        <p>📦 版本：v1.0.0</p>
+                        <p>📅 更新：2025/12/11</p>
+                        <p>🎨 支援 20+ 預設風格 + 無限自訂</p>
+                        <p>🤖 支援 Gemini 2.0/2.5 Flash、Imagen 4</p>
+                        <p>📷 自動上傳到「超級指令插畫生成區」</p>
+                        <p>📚 自動建立「超級指令插畫圖鑑」</p>
+                        <p>💬 LINE 完成通知含連結</p>
+                        <p style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);text-align:center;color:var(--text-muted);">
+                            © 2025 超級指令插畫生成器 Pro<br>
+                            Made with ❤️ and AI
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 底部導航 -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" onclick="switchPage('home')">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">生成</span>
+            </button>
+            <button class="nav-item" onclick="switchPage('results')">
+                <span class="nav-icon">🖼️</span>
+                <span class="nav-label">結果</span>
+            </button>
+            <button class="nav-item" onclick="switchPage('settings')">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">設定</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- 自訂風格 Modal -->
+    <div class="modal-overlay" id="customStyleModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">➕ 自訂風格</span>
+                <button class="modal-close" onclick="closeModal('customStyleModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <div class="form-label">風格名稱</div>
+                    <input type="text" class="form-input" id="customStyleName" placeholder="例如：蒸汽龐克">
+                </div>
+                <div class="form-group">
+                    <div class="form-label">風格描述（英文效果更佳）</div>
+                    <textarea class="form-textarea" id="customStyleDesc" placeholder="例如：Steampunk style with brass gears, Victorian machinery, copper pipes, and industrial aesthetic"></textarea>
+                </div>
+                <div class="form-group">
+                    <div class="form-label">選擇圖示</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;" id="iconSelector">
+                        <span class="style-icon-option" onclick="selectIcon('⚙️')">⚙️</span>
+                        <span class="style-icon-option" onclick="selectIcon('🔮')">🔮</span>
+                        <span class="style-icon-option" onclick="selectIcon('🌈')">🌈</span>
+                        <span class="style-icon-option" onclick="selectIcon('🎪')">🎪</span>
+                        <span class="style-icon-option" onclick="selectIcon('🌸')">🌸</span>
+                        <span class="style-icon-option" onclick="selectIcon('🔥')">🔥</span>
+                        <span class="style-icon-option" onclick="selectIcon('❄️')">❄️</span>
+                        <span class="style-icon-option" onclick="selectIcon('⚡')">⚡</span>
+                        <span class="style-icon-option" onclick="selectIcon('🌙')">🌙</span>
+                        <span class="style-icon-option" onclick="selectIcon('☀️')">☀️</span>
+                        <span class="style-icon-option" onclick="selectIcon('🎭')">🎭</span>
+                        <span class="style-icon-option" onclick="selectIcon('🎯')">🎯</span>
+                    </div>
+                </div>
+                <div class="custom-style-list" id="customStyleList">
+                    <!-- 動態生成 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="addCustomStyle()">➕ 新增風格</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 幫助 Modal -->
+    <div class="modal-overlay" id="helpModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">❓ 使用說明</span>
+                <button class="modal-close" onclick="closeModal('helpModal')">✕</button>
+            </div>
+            <div class="modal-body" style="font-size:13px;line-height:1.8;">
+                <p><strong>1️⃣ 輸入主體描述</strong></p>
+                <p style="color:var(--text-dim);margin-bottom:12px;">描述你想生成的插圖內容，越詳細越好。也可以點「AI 建議」自動生成創意描述。</p>
+                
+                <p><strong>2️⃣ 選擇風格</strong></p>
+                <p style="color:var(--text-dim);margin-bottom:12px;">從 20 種預設風格中選擇，或新增自訂風格。可多選。</p>
+                
+                <p><strong>3️⃣ 設定數量</strong></p>
+                <p style="color:var(--text-dim);margin-bottom:12px;">每種風格要生成幾張圖，1-12 張可選。</p>
+                
+                <p><strong>4️⃣ 選擇 AI 模型</strong></p>
+                <p style="color:var(--text-dim);margin-bottom:12px;">
+                    • Gemini 2.0 Flash：快速生成<br>
+                    • Gemini 2.5 Flash：更高品質<br>
+                    • Imagen 4：最佳效果
+                </p>
+                
+                <p><strong>5️⃣ 選擇輸出方式</strong></p>
+                <p style="color:var(--text-dim);">可同時選擇多種輸出：本機下載、Google 相簿、Google 文件、LINE 通知。</p>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .style-icon-option { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 24px; background: var(--bg-input); border: 2px solid var(--border); border-radius: 8px; cursor: pointer; }
+        .style-icon-option:hover { border-color: var(--purple); }
+        .style-icon-option.selected { border-color: var(--cyan); background: var(--cyan-glow); }
+    </style>
+
+    <script>
+        // ============================================
+        // 全域變數
+        // ============================================
+        let selectedStyles = [];
+        let quantity = 1;
+        let selectedModel = 'gemini-2.0-flash';
+        let outputOptions = { download: true, photos: false, docs: false, line: false };
+        let generatedImages = [];
+        let isGenerating = false;
+        let cancelFlag = false;
+        let selectedIcon = '⚙️';
+
+        // 預設 20 種風格
+        const defaultStyles = [
+            { id: 'pixar', name: '皮克斯 3D', icon: '🎬', desc: 'High-quality Pixar 3D animation style with rich lighting and vibrant colors' },
+            { id: 'ghibli', name: '吉卜力', icon: '🌿', desc: 'Studio Ghibli anime style with soft watercolor textures and whimsical atmosphere' },
+            { id: 'ukiyo-e', name: '浮世繪', icon: '🌊', desc: 'Japanese Ukiyo-e woodblock print style with traditional mineral pigment colors' },
+            { id: 'oil-painting', name: '油畫', icon: '🖼️', desc: 'Classical oil painting style with visible brushstrokes and rich textures' },
+            { id: 'watercolor', name: '水彩', icon: '💧', desc: 'Delicate watercolor style with soft edges and translucent color washes' },
+            { id: 'pencil-sketch', name: '鉛筆素描', icon: '✏️', desc: 'Black and white pencil sketch with dramatic shading and fine details' },
+            { id: 'pixel-art', name: '像素藝術', icon: '👾', desc: '8-bit retro pixel art style with limited color palette' },
+            { id: 'cyberpunk', name: '賽博龐克', icon: '🌃', desc: '80s cyberpunk style with neon lights, glitch effects, and dark atmosphere' },
+            { id: 'steampunk', name: '蒸汽龐克', icon: '⚙️', desc: 'Victorian steampunk with brass gears, copper pipes, and industrial machinery' },
+            { id: 'art-nouveau', name: '新藝術', icon: '🌺', desc: 'Art Nouveau style with organic curves, floral patterns, and decorative borders' },
+            { id: 'pop-art', name: '普普藝術', icon: '🎨', desc: 'Andy Warhol pop art style with bold colors, halftone dots, and comic elements' },
+            { id: 'minimalist', name: '極簡主義', icon: '⬜', desc: 'Minimalist style with clean lines, limited colors, and negative space' },
+            { id: 'surrealism', name: '超現實主義', icon: '👁️', desc: 'Salvador Dali surrealism with dreamlike imagery and impossible perspectives' },
+            { id: 'impressionist', name: '印象派', icon: '🌻', desc: 'Monet impressionist style with visible brushstrokes and light effects' },
+            { id: 'manga', name: '日漫風格', icon: '📖', desc: 'Japanese manga style with bold outlines, screentones, and dynamic poses' },
+            { id: 'chibi', name: 'Q版萌系', icon: '🥰', desc: 'Chibi kawaii style with big eyes, small body, and cute expressions' },
+            { id: 'realistic', name: '寫實攝影', icon: '📸', desc: 'Photorealistic style with accurate lighting, textures, and details' },
+            { id: 'low-poly', name: '低多邊形', icon: '📐', desc: 'Low poly 3D style with geometric shapes and flat shading' },
+            { id: 'ink-wash', name: '水墨畫', icon: '🖌️', desc: 'Traditional Chinese ink wash painting with flowing brushstrokes' },
+            { id: 'vaporwave', name: '蒸氣波', icon: '🌴', desc: '90s vaporwave aesthetic with pink/blue gradients, Greek statues, and retro tech' }
+        ];
+
+        let customStyles = [];
+
+        // ============================================
+        // 初始化
+        // ============================================
+        document.addEventListener('DOMContentLoaded', function() {
+            // 開機動畫
+            setTimeout(() => {
+                document.getElementById('splashScreen').classList.add('fade-out');
+                setTimeout(() => {
+                    document.getElementById('splashScreen').style.display = 'none';
+                }, 800);
+            }, 2500);
+
+            // 載入設定
+            loadSettings();
+            
+            // 渲染風格選擇器
+            renderStyleGrid();
+            
+            // 更新總數顯示
+            updateTotalImages();
+        });
+
+        // ============================================
+        // 頁面切換
+        // ============================================
+        function switchPage(pageName) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            
+            document.getElementById('page-' + pageName).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+
+        // ============================================
+        // 風格選擇器
+        // ============================================
+        function renderStyleGrid() {
+            const grid = document.getElementById('styleGrid');
+            const allStyles = [...defaultStyles, ...customStyles];
+            
+            grid.innerHTML = allStyles.map(style => `
+                <div class="style-item ${selectedStyles.includes(style.id) ? 'selected' : ''}" 
+                     onclick="toggleStyle('${style.id}')">
+                    <div class="style-icon">${style.icon}</div>
+                    <div class="style-name">${style.name}</div>
+                </div>
+            `).join('') + `
+                <div class="style-item style-custom" onclick="showCustomStyleModal()">
+                    <div class="style-icon">➕</div>
+                    <div class="style-name">自訂風格</div>
+                </div>
+            `;
+            
+            updateSelectedCount();
+        }
+
+        function toggleStyle(styleId) {
+            const index = selectedStyles.indexOf(styleId);
+            if (index > -1) {
+                selectedStyles.splice(index, 1);
+            } else {
+                selectedStyles.push(styleId);
+            }
+            renderStyleGrid();
+            updateTotalImages();
+        }
+
+        function updateSelectedCount() {
+            document.getElementById('selectedStyleCount').textContent = selectedStyles.length;
+        }
+
+        // ============================================
+        // 數量選擇
+        // ============================================
+        function adjustQuantity(delta) {
+            quantity = Math.max(1, Math.min(12, quantity + delta));
+            document.getElementById('quantityValue').textContent = quantity;
+            updateTotalImages();
+        }
+
+        function updateTotalImages() {
+            const total = selectedStyles.length * quantity;
+            document.getElementById('totalImages').textContent = total;
+        }
+
+        // ============================================
+        // 模型選擇
+        // ============================================
+        function selectModel(model) {
+            selectedModel = model;
+            document.querySelectorAll('.model-option').forEach(opt => {
+                opt.classList.toggle('selected', opt.querySelector('input').value === model);
+            });
+        }
+
+        // ============================================
+        // 輸出選項
+        // ============================================
+        function toggleOutput(element, option) {
+            outputOptions[option] = !outputOptions[option];
+            element.classList.toggle('selected', outputOptions[option]);
+        }
+
+        // ============================================
+        // AI 建議
+        // ============================================
+        async function getAISuggestion() {
+            const apiKey = localStorage.getItem('geminiApiKey');
+            if (!apiKey) {
+                showToast('請先設定 API Key', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('aiSuggestBtn');
+            btn.classList.add('loading');
+
+            try {
+                const prompt = `你是一個創意插圖描述專家。請生成一個獨特、有趣、適合AI圖像生成的插圖描述。
+
+要求：
+1. 描述要具體、生動、有畫面感
+2. 包含主體、動作、場景、氛圍
+3. 適合各種藝術風格呈現
+4. 中文描述，約50-100字
+
+請直接輸出描述，不要加任何前綴或解釋。`;
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: 1.0 }
+                    })
+                });
+
+                const data = await response.json();
+                if (data.candidates && data.candidates[0]) {
+                    const suggestion = data.candidates[0].content.parts[0].text.trim();
+                    document.getElementById('subjectInput').value = suggestion;
+                    showToast('✨ AI 建議已生成', 'success');
+                }
+            } catch (error) {
+                console.error('AI 建議錯誤:', error);
+                showToast('AI 建議失敗', 'error');
+            } finally {
+                btn.classList.remove('loading');
+            }
+        }
+
+        // ============================================
+        // 開始生成
+        // ============================================
+        async function startGeneration() {
+            const subject = document.getElementById('subjectInput').value.trim();
+            const apiKey = localStorage.getItem('geminiApiKey');
+
+            if (!subject) {
+                showToast('請輸入主體描述', 'error');
+                return;
+            }
+
+            if (!apiKey) {
+                showToast('請先設定 API Key', 'error');
+                switchPage('settings');
+                return;
+            }
+
+            if (selectedStyles.length === 0) {
+                showToast('請至少選擇一種風格', 'error');
+                return;
+            }
+
+            // 顯示進度
+            isGenerating = true;
+            cancelFlag = false;
+            generatedImages = [];
+            
+            document.getElementById('generateBtn').style.display = 'none';
+            document.getElementById('generationProgress').classList.add('active');
+            
+            const allStyles = [...defaultStyles, ...customStyles];
+            const totalImages = selectedStyles.length * quantity;
+            let currentIndex = 0;
+
+            document.getElementById('progressCount').textContent = `0 / ${totalImages}`;
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressLog').innerHTML = '';
+
+            addLog('🚀 開始生成任務...', 'info');
+            addLog(`📝 主題: ${subject.substring(0, 30)}...`, 'info');
+            addLog(`🎨 風格數: ${selectedStyles.length}`, 'info');
+            addLog(`🔢 每風格數量: ${quantity}`, 'info');
+            addLog(`🤖 使用模型: ${selectedModel}`, 'info');
+
+            for (const styleId of selectedStyles) {
+                if (cancelFlag) break;
+
+                const style = allStyles.find(s => s.id === styleId);
+                if (!style) continue;
+
+                for (let i = 0; i < quantity; i++) {
+                    if (cancelFlag) break;
+
+                    currentIndex++;
+                    const progress = (currentIndex / totalImages) * 100;
+                    
+                    document.getElementById('progressCount').textContent = `${currentIndex} / ${totalImages}`;
+                    document.getElementById('progressBar').style.width = progress + '%';
+                    document.getElementById('progressStatus').textContent = `正在生成: ${style.name} (${i + 1}/${quantity})`;
+
+                    addLog(`🎨 生成 ${style.name} #${i + 1}...`, 'info');
+
+                    try {
+                        const imageData = await generateImage(subject, style, apiKey);
+                        if (imageData) {
+                            generatedImages.push({
+                                style: style.name,
+                                styleId: style.id,
+                                data: imageData,
+                                timestamp: Date.now()
+                            });
+                            addLog(`✅ ${style.name} #${i + 1} 完成`, 'success');
+                        }
+                    } catch (error) {
+                        addLog(`❌ ${style.name} #${i + 1} 失敗: ${error.message}`, 'error');
+                    }
+
+                    // 延遲避免 rate limit
+                    if (currentIndex < totalImages) {
+                        await sleep(1500);
+                    }
+                }
+            }
+
+            // 完成
+            isGenerating = false;
+            
+            if (!cancelFlag) {
+                addLog(`🎉 生成完成! 共 ${generatedImages.length} 張圖片`, 'success');
+                document.getElementById('progressStatus').textContent = '✅ 生成完成!';
+
+                // 處理輸出
+                await handleOutputs();
+                
+                // 更新結果頁
+                renderResults();
+                
+                showToast(`🎉 已生成 ${generatedImages.length} 張圖片`, 'success');
+            } else {
+                addLog('⏹️ 已取消生成', 'error');
+                document.getElementById('progressStatus').textContent = '已取消';
+            }
+
+            // 恢復按鈕
+            setTimeout(() => {
+                document.getElementById('generateBtn').style.display = 'flex';
+                document.getElementById('generationProgress').classList.remove('active');
+            }, 2000);
+        }
+
+        // ============================================
+        // 生成單張圖片
+        // ============================================
+        async function generateImage(subject, style, apiKey) {
+            const prompt = `Create an illustration: ${subject}
+
+Art Style: ${style.desc}
+
+Requirements:
+- Maintain the exact same subject, pose, and composition
+- Apply only the specified art style rendering
+- High quality, detailed artwork
+- No text or watermarks`;
+
+            let modelEndpoint = '';
+            let requestBody = {};
+
+            if (selectedModel === 'imagen-4') {
+                // Imagen 4 API (需要不同的端點)
+                modelEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+                requestBody = {
+                    instances: [{ prompt: prompt }],
+                    parameters: {
+                        sampleCount: 1,
+                        aspectRatio: "1:1"
+                    }
+                };
+            } else {
+                // Gemini 2.0/2.5 Flash
+                const model = selectedModel === 'gemini-2.5-flash' ? 'gemini-2.5-flash-preview-05-20' : 'gemini-2.0-flash-exp';
+                modelEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                requestBody = {
+                    contents: [{ 
+                        parts: [{ text: prompt }] 
+                    }],
+                    generationConfig: {
+                        responseModalities: ["TEXT", "IMAGE"]
+                    }
+                };
+            }
+
+            const response = await fetch(modelEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error.message);
+            }
+
+            // 解析圖片數據
+            if (selectedModel === 'imagen-4') {
+                if (data.predictions && data.predictions[0]) {
+                    return data.predictions[0].bytesBase64Encoded;
+                }
+            } else {
+                if (data.candidates && data.candidates[0]) {
+                    const parts = data.candidates[0].content.parts;
+                    for (const part of parts) {
+                        if (part.inlineData && part.inlineData.mimeType.startsWith('image/')) {
+                            return part.inlineData.data;
+                        }
+                    }
+                }
+            }
+
+            throw new Error('未能獲取圖片數據');
+        }
+
+        // ============================================
+        // 處理輸出（透過 GAS 後端）
+        // ============================================
+        async function handleOutputs() {
+            if (generatedImages.length === 0) return;
+
+            const gasUrl = localStorage.getItem('gasUrl');
+            const gasSecret = localStorage.getItem('gasSecret');
+            const subject = document.getElementById('subjectInput').value.trim();
+            
+            const allStyles = [...defaultStyles, ...customStyles];
+            const usedStyles = selectedStyles.map(id => allStyles.find(s => s.id === id)).filter(Boolean);
+
+            // 本機下載提示
+            if (outputOptions.download) {
+                addLog('💾 本機下載已準備就緒（請至結果頁下載）', 'info');
+            }
+
+            // 如果需要 GAS 服務
+            const needsGAS = outputOptions.photos || outputOptions.docs || outputOptions.line;
+            
+            if (needsGAS) {
+                if (!gasUrl || !gasSecret) {
+                    addLog('⚠️ GAS 設定未完成，跳過雲端功能', 'error');
+                    return;
+                }
+
+                addLog('☁️ 開始執行雲端流程...', 'info');
+
+                try {
+                    const payload = {
+                        secret: gasSecret,
+                        action: 'fullProcess',
+                        subject: subject,
+                        model: selectedModel,
+                        styles: usedStyles.map(s => ({ name: s.name, icon: s.icon })),
+                        images: generatedImages.map(img => ({
+                            style: img.style,
+                            data: img.data
+                        })),
+                        options: {
+                            photos: outputOptions.photos,
+                            book: outputOptions.docs,
+                            notification: outputOptions.line
+                        }
+                    };
+
+                    addLog('📤 傳送資料到 GAS...', 'info');
+                    
+                    const response = await fetch(gasUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        addLog('✅ 雲端流程完成！', 'success');
+                        
+                        if (result.results.photos?.success) {
+                            addLog(`📷 已上傳到「超級指令插畫生成區」`, 'success');
+                            addLog(`📁 相簿連結: ${result.results.photos.folderUrl}`, 'info');
+                        }
+                        
+                        if (result.results.book?.success) {
+                            addLog(`📚 已建立「超級指令插畫圖鑑」`, 'success');
+                            addLog(`📄 圖鑑連結: ${result.results.book.docUrl}`, 'info');
+                        }
+                        
+                        if (result.results.notification?.success) {
+                            addLog('💬 LINE 通知已發送', 'success');
+                        }
+                    } else {
+                        addLog('⚠️ 雲端流程部分失敗: ' + result.message, 'error');
+                    }
+
+                } catch (error) {
+                    console.error('GAS 錯誤:', error);
+                    addLog('❌ 雲端流程失敗: ' + error.message, 'error');
+                }
+            }
+        }
+
+        // ============================================
+        // 取消生成
+        // ============================================
+        function cancelGeneration() {
+            cancelFlag = true;
+            showToast('正在取消...', 'info');
+        }
+
+        // ============================================
+        // 結果頁
+        // ============================================
+        function renderResults() {
+            const grid = document.getElementById('resultsGrid');
+            document.getElementById('resultsSubtitle').textContent = `共 ${generatedImages.length} 張圖片`;
+
+            if (generatedImages.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column:span 2;text-align:center;padding:40px;color:var(--text-muted);">
+                        尚無生成結果
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = generatedImages.map((img, index) => `
+                <div class="result-item">
+                    <img class="result-image" src="data:image/png;base64,${img.data}" alt="${img.style}">
+                    <div class="result-info">
+                        <div class="result-style">${img.style}</div>
+                        <div class="result-actions">
+                            <button class="result-btn" onclick="downloadImage(${index})" title="下載">💾</button>
+                            <button class="result-btn" onclick="viewImage(${index})" title="檢視">🔍</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function downloadImage(index) {
+            const img = generatedImages[index];
+            const link = document.createElement('a');
+            link.href = 'data:image/png;base64,' + img.data;
+            link.download = `illustration_${img.styleId}_${index + 1}.png`;
+            link.click();
+            showToast('📥 圖片已下載', 'success');
+        }
+
+        function downloadAllImages() {
+            if (generatedImages.length === 0) {
+                showToast('沒有可下載的圖片', 'error');
+                return;
+            }
+
+            generatedImages.forEach((img, index) => {
+                setTimeout(() => {
+                    const link = document.createElement('a');
+                    link.href = 'data:image/png;base64,' + img.data;
+                    link.download = `illustration_${img.styleId}_${index + 1}.png`;
+                    link.click();
+                }, index * 500);
+            });
+
+            showToast(`📥 正在下載 ${generatedImages.length} 張圖片...`, 'success');
+        }
+
+        function viewImage(index) {
+            const img = generatedImages[index];
+            const win = window.open();
+            win.document.write(`<img src="data:image/png;base64,${img.data}" style="max-width:100%;">`);
+        }
+
+        function clearResults() {
+            if (confirm('確定要清除所有結果嗎？')) {
+                generatedImages = [];
+                renderResults();
+                showToast('已清除結果', 'success');
+            }
+        }
+
+        // ============================================
+        // 自訂風格
+        // ============================================
+        function showCustomStyleModal() {
+            renderCustomStyleList();
+            document.getElementById('customStyleModal').classList.add('show');
+        }
+
+        function renderCustomStyleList() {
+            const list = document.getElementById('customStyleList');
+            if (customStyles.length === 0) {
+                list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">尚無自訂風格</div>';
+                return;
+            }
+
+            list.innerHTML = customStyles.map((style, index) => `
+                <div class="custom-style-item">
+                    <span class="style-icon">${style.icon}</span>
+                    <span class="style-text">${style.name}</span>
+                    <button class="delete-btn" onclick="deleteCustomStyle(${index})">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function selectIcon(icon) {
+            selectedIcon = icon;
+            document.querySelectorAll('.style-icon-option').forEach(el => {
+                el.classList.toggle('selected', el.textContent === icon);
+            });
+        }
+
+        function addCustomStyle() {
+            const name = document.getElementById('customStyleName').value.trim();
+            const desc = document.getElementById('customStyleDesc').value.trim();
+
+            if (!name || !desc) {
+                showToast('請填寫風格名稱和描述', 'error');
+                return;
+            }
+
+            const newStyle = {
+                id: 'custom-' + Date.now(),
+                name: name,
+                icon: selectedIcon,
+                desc: desc,
+                custom: true
+            };
+
+            customStyles.push(newStyle);
+            saveCustomStyles();
+            
+            document.getElementById('customStyleName').value = '';
+            document.getElementById('customStyleDesc').value = '';
+            
+            renderCustomStyleList();
+            renderStyleGrid();
+            
+            showToast('✅ 自訂風格已新增', 'success');
+        }
+
+        function deleteCustomStyle(index) {
+            const style = customStyles[index];
+            // 從選擇中移除
+            const selectedIndex = selectedStyles.indexOf(style.id);
+            if (selectedIndex > -1) {
+                selectedStyles.splice(selectedIndex, 1);
+            }
+            
+            customStyles.splice(index, 1);
+            saveCustomStyles();
+            renderCustomStyleList();
+            renderStyleGrid();
+            showToast('已刪除自訂風格', 'success');
+        }
+
+        // ============================================
+        // 設定儲存與管理
+        // ============================================
+        
+        // 切換密碼顯示/隱藏
+        function toggleVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = '🔒';
+                btn.classList.add('active');
+            } else {
+                input.type = 'password';
+                btn.textContent = '👁️';
+                btn.classList.remove('active');
+            }
+        }
+
+        // 顯示欄位狀態
+        function showFieldStatus(statusId, message, type = 'info') {
+            const status = document.getElementById(statusId);
+            status.textContent = message;
+            status.className = 'field-status show ' + type;
+            
+            // 3 秒後自動隱藏（除了 error）
+            if (type !== 'error') {
+                setTimeout(() => {
+                    status.classList.remove('show');
+                }, 3000);
+            }
+        }
+
+        // 儲存單一欄位
+        function saveField(fieldType) {
+            switch (fieldType) {
+                case 'apiKey':
+                    const apiKey = document.getElementById('apiKeyInput').value.trim();
+                    if (!apiKey) {
+                        showFieldStatus('apiKeyStatus', '❌ 請輸入 API Key', 'error');
+                        return;
+                    }
+                    localStorage.setItem('geminiApiKey', apiKey);
+                    showFieldStatus('apiKeyStatus', '✅ API Key 已儲存', 'success');
+                    break;
+                    
+                case 'gas':
+                    const gasUrl = document.getElementById('gasUrlInput').value.trim();
+                    const gasSecret = document.getElementById('gasSecretInput').value.trim();
+                    if (!gasUrl || !gasSecret) {
+                        showFieldStatus('gasStatus', '❌ 請填寫 URL 和安全密鑰', 'error');
+                        return;
+                    }
+                    localStorage.setItem('gasUrl', gasUrl);
+                    localStorage.setItem('gasSecret', gasSecret);
+                    showFieldStatus('gasStatus', '✅ GAS 設定已儲存', 'success');
+                    break;
+                    
+                case 'google':
+                    const clientId = document.getElementById('googleClientId').value.trim();
+                    if (!clientId) {
+                        showFieldStatus('googleStatus', '❌ 請輸入 Client ID', 'error');
+                        return;
+                    }
+                    localStorage.setItem('googleClientId', clientId);
+                    showFieldStatus('googleStatus', '✅ Google OAuth 已儲存', 'success');
+                    break;
+            }
+        }
+
+        // 清除單一欄位
+        function clearField(fieldType) {
+            switch (fieldType) {
+                case 'apiKey':
+                    if (!confirm('確定要清除 API Key 嗎？')) return;
+                    localStorage.removeItem('geminiApiKey');
+                    document.getElementById('apiKeyInput').value = '';
+                    showFieldStatus('apiKeyStatus', '🗑️ API Key 已清除', 'warning');
+                    break;
+                    
+                case 'gas':
+                    if (!confirm('確定要清除 GAS 設定嗎？')) return;
+                    localStorage.removeItem('gasUrl');
+                    localStorage.removeItem('gasSecret');
+                    document.getElementById('gasUrlInput').value = '';
+                    document.getElementById('gasSecretInput').value = '';
+                    showFieldStatus('gasStatus', '🗑️ GAS 設定已清除', 'warning');
+                    break;
+                    
+                case 'google':
+                    if (!confirm('確定要清除 Google OAuth 嗎？')) return;
+                    localStorage.removeItem('googleClientId');
+                    document.getElementById('googleClientId').value = '';
+                    showFieldStatus('googleStatus', '🗑️ Google OAuth 已清除', 'warning');
+                    break;
+            }
+        }
+
+        // 測試 GAS 連線
+        async function testGasConnection() {
+            const gasUrl = localStorage.getItem('gasUrl');
+            const gasSecret = localStorage.getItem('gasSecret');
+            
+            if (!gasUrl || !gasSecret) {
+                showFieldStatus('gasStatus', '❌ 請先儲存 GAS 設定', 'error');
+                return;
+            }
+            
+            showFieldStatus('gasStatus', '🔄 測試連線中...', 'info');
+            
+            try {
+                const response = await fetch(gasUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                        secret: gasSecret,
+                        action: 'test'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showFieldStatus('gasStatus', '✅ GAS 連線成功！相簿：' + (result.config?.albumName || '已設定'), 'success');
+                } else {
+                    showFieldStatus('gasStatus', '❌ 連線失敗：' + result.error, 'error');
+                }
+            } catch (error) {
+                showFieldStatus('gasStatus', '❌ 連線錯誤：' + error.message, 'error');
+            }
+        }
+
+        // 測試 LINE 通知
+        async function testLineNotification() {
+            const gasUrl = localStorage.getItem('gasUrl');
+            const gasSecret = localStorage.getItem('gasSecret');
+            
+            if (!gasUrl || !gasSecret) {
+                showFieldStatus('lineStatus', '❌ 請先設定 GAS 後端', 'error');
+                return;
+            }
+            
+            showFieldStatus('lineStatus', '📨 發送測試通知...', 'info');
+            
+            try {
+                const response = await fetch(gasUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                        secret: gasSecret,
+                        action: 'sendNotification',
+                        message: `🎨 超級指令插畫生成器\n\n📨 測試通知\n這是一則測試訊息，如果你收到表示 LINE 通知功能正常！\n\n⏰ ${new Date().toLocaleString('zh-TW')}`
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showFieldStatus('lineStatus', '✅ 測試通知已發送，請檢查 LINE', 'success');
+                } else {
+                    showFieldStatus('lineStatus', '❌ 發送失敗：' + result.error, 'error');
+                }
+            } catch (error) {
+                showFieldStatus('lineStatus', '❌ 發送錯誤：' + error.message, 'error');
+            }
+        }
+
+        // 匯出所有設定
+        function exportSettings() {
+            const settings = {
+                geminiApiKey: localStorage.getItem('geminiApiKey') || '',
+                gasUrl: localStorage.getItem('gasUrl') || '',
+                gasSecret: localStorage.getItem('gasSecret') || '',
+                googleClientId: localStorage.getItem('googleClientId') || '',
+                customStyles: localStorage.getItem('customStyles') || '[]',
+                exportDate: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `超級指令插畫生成器_設定_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showToast('📤 設定已匯出', 'success');
+        }
+
+        // 匯入設定
+        function importSettings() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                try {
+                    const text = await file.text();
+                    const settings = JSON.parse(text);
+                    
+                    if (settings.geminiApiKey) localStorage.setItem('geminiApiKey', settings.geminiApiKey);
+                    if (settings.gasUrl) localStorage.setItem('gasUrl', settings.gasUrl);
+                    if (settings.gasSecret) localStorage.setItem('gasSecret', settings.gasSecret);
+                    if (settings.googleClientId) localStorage.setItem('googleClientId', settings.googleClientId);
+                    if (settings.customStyles) localStorage.setItem('customStyles', settings.customStyles);
+                    
+                    loadSettings();
+                    showToast('📥 設定已匯入', 'success');
+                } catch (error) {
+                    showToast('❌ 匯入失敗：檔案格式錯誤', 'error');
+                }
+            };
+            input.click();
+        }
+
+        // 清除所有設定
+        function clearAllSettings() {
+            if (!confirm('⚠️ 確定要清除所有資料嗎？\n\n這將刪除：\n• API Key\n• GAS 設定\n• Google OAuth\n• 自訂風格\n• 生成結果\n\n此操作無法復原！')) return;
+            
+            localStorage.clear();
+            generatedImages = [];
+            customStyles = [];
+            selectedStyles = [];
+            
+            // 重新載入頁面
+            location.reload();
+        }
+
+        function loadSettings() {
+            // API Key
+            const apiKey = localStorage.getItem('geminiApiKey');
+            if (apiKey) {
+                document.getElementById('apiKeyInput').value = apiKey;
+                showFieldStatus('apiKeyStatus', '✅ 已載入 API Key', 'success');
+            }
+
+            // GAS 設定
+            const gasUrl = localStorage.getItem('gasUrl');
+            const gasSecret = localStorage.getItem('gasSecret');
+            if (gasUrl) document.getElementById('gasUrlInput').value = gasUrl;
+            if (gasSecret) document.getElementById('gasSecretInput').value = gasSecret;
+            if (gasUrl && gasSecret) {
+                showFieldStatus('gasStatus', '✅ 已載入 GAS 設定', 'success');
+            }
+
+            // Google Client ID
+            const clientId = localStorage.getItem('googleClientId');
+            if (clientId) {
+                document.getElementById('googleClientId').value = clientId;
+                showFieldStatus('googleStatus', '✅ 已載入 Google OAuth', 'success');
+            }
+
+            // 自訂風格
+            const stored = localStorage.getItem('customStyles');
+            if (stored) {
+                customStyles = JSON.parse(stored);
+            }
+        }
+
+        // 舊函數保留相容性
+        function saveApiKey() { saveField('apiKey'); }
+        function saveLineSettings() { saveField('gas'); }
+        function googleAuth() {
+            showToast('Google OAuth 授權功能開發中...', 'info');
+        }
+        
+        function saveCustomStyles() {
+            localStorage.setItem('customStyles', JSON.stringify(customStyles));
+        }
+
+        // ============================================
+        // 工具函數
+        // ============================================
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+
+        function showHelpModal() {
+            document.getElementById('helpModal').classList.add('show');
+        }
+
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('progressLog');
+            const time = new Date().toLocaleTimeString('zh-TW');
+            log.innerHTML += `<div class="log-item ${type}">[${time}] ${message}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Modal 點擊外部關閉
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('show');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,742 @@
+// ============================================
+// 🎨 超級指令插畫生成器 - GAS 後端 v2.0
+// ============================================
+// 
+// 【功能】
+// ✅ 上傳圖片到 Google 相簿（相簿：超級指令插畫生成區）
+// ✅ 建立圖文並茂 Google Doc 圖鑑（超級指令插畫圖鑑）
+// ✅ 發送 LINE 完成通知
+// ✅ 完整流程一次執行
+// 
+// 【部署步驟】
+// 1. 前往 https://script.google.com 建立新專案
+// 2. 貼上此程式碼
+// 3. 修改下方設定區
+// 4. 部署為網頁應用程式
+//    - 執行身分：我
+//    - 存取權：所有人
+// 5. 首次執行需授權 Google Photos API
+// 
+// 【Google Photos API 設定】
+// 1. 前往 Google Cloud Console
+// 2. 啟用 Photos Library API
+// 3. 建立 OAuth 2.0 憑證
+// 4. 將 Client ID 和 Secret 填入下方
+// 
+// ============================================
+
+// ============================================
+// 🔧 設定區 - 請修改這裡
+// ============================================
+
+const CONFIG = {
+  // 安全密鑰
+  SECURITY_SECRET: 'your-secret-key-here',
+  
+  // LINE Messaging API
+  LINE_CHANNEL_ACCESS_TOKEN: 'your-line-channel-access-token',
+  LINE_USER_ID: 'your-line-user-id',
+  
+  // Google 相簿設定
+  PHOTOS_ALBUM_NAME: '超級指令插畫生成區',
+  
+  // Google Doc 設定
+  DOC_TITLE_PREFIX: '超級指令插畫圖鑑',
+  DOCS_FOLDER_NAME: '插畫圖鑑收藏',
+  
+  // Google Drive 備份資料夾
+  DRIVE_BACKUP_FOLDER: '插畫備份'
+};
+
+// ============================================
+// 🌐 Web App 入口
+// ============================================
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    
+    // 驗證安全密鑰
+    if (data.secret !== CONFIG.SECURITY_SECRET) {
+      return jsonResponse({ success: false, error: '🔒 安全密鑰錯誤' });
+    }
+    
+    const action = data.action;
+    
+    switch (action) {
+      case 'uploadToPhotos':
+        return handleUploadToPhotos(data);
+      case 'createIllustrationBook':
+        return handleCreateIllustrationBook(data);
+      case 'sendNotification':
+        return handleSendNotification(data);
+      case 'fullProcess':
+        return handleFullProcess(data);
+      case 'test':
+        return handleTest(data);
+      default:
+        return jsonResponse({ success: false, error: '未知的操作: ' + action });
+    }
+    
+  } catch (error) {
+    console.error('doPost 錯誤:', error);
+    return jsonResponse({ success: false, error: error.toString() });
+  }
+}
+
+function doGet(e) {
+  return jsonResponse({ 
+    success: true, 
+    message: '🎨 超級指令插畫生成器 GAS 後端 v2.0',
+    timestamp: new Date().toISOString(),
+    actions: [
+      'uploadToPhotos - 上傳到 Google 相簿',
+      'createIllustrationBook - 建立插畫圖鑑',
+      'sendNotification - 發送 LINE 通知',
+      'fullProcess - 完整流程'
+    ]
+  });
+}
+
+// ============================================
+// 📷 上傳到 Google 相簿
+// ============================================
+
+function handleUploadToPhotos(data) {
+  const images = data.images || [];
+  const sessionName = data.sessionName || formatDateTime(new Date());
+  
+  if (images.length === 0) {
+    return jsonResponse({ success: false, error: '沒有圖片資料' });
+  }
+  
+  try {
+    // 由於 Google Photos API 需要 OAuth，這裡先上傳到 Drive 作為備份
+    // 並提供 Drive 連結（可透過 Drive 同步到相簿）
+    
+    const mainFolder = getOrCreateFolder(CONFIG.DRIVE_BACKUP_FOLDER);
+    const albumFolder = getOrCreateFolder(CONFIG.PHOTOS_ALBUM_NAME, mainFolder);
+    const sessionFolder = getOrCreateFolder(sessionName, albumFolder);
+    
+    const uploadedFiles = [];
+    
+    images.forEach((img, index) => {
+      const fileName = `${img.style || 'illustration'}_${String(index + 1).padStart(2, '0')}.png`;
+      
+      const blob = Utilities.newBlob(
+        Utilities.base64Decode(img.data),
+        'image/png',
+        fileName
+      );
+      
+      const file = sessionFolder.createFile(blob);
+      
+      // 設定為任何人可檢視（方便分享）
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      
+      uploadedFiles.push({
+        name: file.getName(),
+        url: file.getUrl(),
+        downloadUrl: 'https://drive.google.com/uc?export=download&id=' + file.getId(),
+        id: file.getId(),
+        style: img.style
+      });
+    });
+    
+    const folderUrl = sessionFolder.getUrl();
+    
+    // 設定資料夾為可分享
+    sessionFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    return jsonResponse({
+      success: true,
+      message: `✅ 已上傳 ${uploadedFiles.length} 張圖片到「${CONFIG.PHOTOS_ALBUM_NAME}」`,
+      albumName: CONFIG.PHOTOS_ALBUM_NAME,
+      sessionName: sessionName,
+      folderUrl: folderUrl,
+      files: uploadedFiles,
+      totalCount: uploadedFiles.length
+    });
+    
+  } catch (error) {
+    console.error('上傳圖片錯誤:', error);
+    return jsonResponse({ success: false, error: error.toString() });
+  }
+}
+
+// ============================================
+// 📚 建立插畫圖鑑（圖文並茂版）
+// ============================================
+
+function handleCreateIllustrationBook(data) {
+  const subject = data.subject || '未命名主題';
+  const images = data.images || [];
+  const styles = data.styles || [];
+  const model = data.model || 'Gemini';
+  const folderUrl = data.folderUrl || '';
+  
+  try {
+    // 取得或建立資料夾
+    const mainFolder = getOrCreateFolder(CONFIG.DOCS_FOLDER_NAME);
+    
+    // 建立文件名稱
+    const timestamp = formatDateTime(new Date());
+    const docName = `${CONFIG.DOC_TITLE_PREFIX}_${timestamp}`;
+    
+    // 建立 Google Doc
+    const doc = DocumentApp.create(docName);
+    const body = doc.getBody();
+    
+    // 設定頁面邊距
+    body.setMarginTop(36);
+    body.setMarginBottom(36);
+    body.setMarginLeft(36);
+    body.setMarginRight(36);
+    
+    // ====== 封面標題 ======
+    const titlePara = body.appendParagraph('🎨 超級指令插畫圖鑑');
+    titlePara.setHeading(DocumentApp.ParagraphHeading.TITLE);
+    titlePara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    titlePara.setForegroundColor('#1a1a2e');
+    
+    body.appendParagraph('');
+    
+    // 裝飾線
+    const decorLine1 = body.appendParagraph('✦ ═══════════════════════════════ ✦');
+    decorLine1.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    decorLine1.setForegroundColor('#6c5ce7');
+    
+    body.appendParagraph('');
+    
+    // ====== 主題描述區塊 ======
+    const subjectTitle = body.appendParagraph('📝 創作主題');
+    subjectTitle.setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    subjectTitle.setForegroundColor('#2d3436');
+    
+    // 主題內容框
+    const subjectTable = body.appendTable([[subject]]);
+    const subjectCell = subjectTable.getRow(0).getCell(0);
+    subjectCell.setBackgroundColor('#f8f9fa');
+    subjectCell.setPaddingTop(16);
+    subjectCell.setPaddingBottom(16);
+    subjectCell.setPaddingLeft(20);
+    subjectCell.setPaddingRight(20);
+    subjectCell.getChild(0).asParagraph().setFontSize(12).setLineSpacing(1.5);
+    
+    body.appendParagraph('');
+    
+    // ====== 生成資訊 ======
+    const infoTitle = body.appendParagraph('📊 生成資訊');
+    infoTitle.setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    infoTitle.setForegroundColor('#2d3436');
+    
+    const infoData = [
+      ['🤖 AI 模型', model],
+      ['🎭 風格數量', styles.length + ' 種'],
+      ['🖼️ 圖片總數', images.length + ' 張'],
+      ['⏰ 生成時間', formatDateTime(new Date(), true)]
+    ];
+    
+    const infoTable = body.appendTable(infoData);
+    styleInfoTable(infoTable);
+    
+    body.appendParagraph('');
+    
+    // ====== 使用風格列表 ======
+    const stylesTitle = body.appendParagraph('🎭 使用的藝術風格');
+    stylesTitle.setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    stylesTitle.setForegroundColor('#2d3436');
+    
+    // 風格標籤雲
+    let styleText = '';
+    styles.forEach((style, index) => {
+      styleText += (style.icon || '🎨') + ' ' + style.name;
+      if (index < styles.length - 1) styleText += '  •  ';
+    });
+    
+    const stylesPara = body.appendParagraph(styleText);
+    stylesPara.setForegroundColor('#6c5ce7');
+    stylesPara.setFontSize(11);
+    stylesPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    
+    body.appendParagraph('');
+    
+    // 分隔線
+    const divider1 = body.appendParagraph('─'.repeat(60));
+    divider1.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    divider1.setForegroundColor('#dfe6e9');
+    
+    body.appendParagraph('');
+    
+    // ====== 插畫展示區 ======
+    const galleryTitle = body.appendParagraph('🖼️ 插畫展示');
+    galleryTitle.setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    galleryTitle.setForegroundColor('#2d3436');
+    
+    body.appendParagraph('');
+    
+    // 逐一展示每張圖片
+    images.forEach((img, index) => {
+      // 風格標題
+      const styleHeader = body.appendParagraph(`【 ${img.style || '風格 ' + (index + 1)} 】`);
+      styleHeader.setHeading(DocumentApp.ParagraphHeading.HEADING2);
+      styleHeader.setForegroundColor('#0984e3');
+      styleHeader.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+      
+      // 插入圖片
+      if (img.data) {
+        try {
+          const blob = Utilities.newBlob(
+            Utilities.base64Decode(img.data),
+            'image/png',
+            `illustration_${index + 1}.png`
+          );
+          
+          const image = body.appendImage(blob);
+          
+          // 調整圖片大小（最大寬度 450px，保持比例）
+          const maxWidth = 450;
+          const originalWidth = image.getWidth();
+          const originalHeight = image.getHeight();
+          
+          if (originalWidth > maxWidth) {
+            const ratio = maxWidth / originalWidth;
+            image.setWidth(maxWidth);
+            image.setHeight(originalHeight * ratio);
+          }
+          
+          // 圖片置中
+          const imgPara = image.getParent().asParagraph();
+          imgPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+          
+        } catch (e) {
+          const errorPara = body.appendParagraph('⚠️ 圖片載入失敗');
+          errorPara.setForegroundColor('#e74c3c');
+          errorPara.setItalic(true);
+          errorPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+        }
+      }
+      
+      // 圖片說明
+      if (img.desc) {
+        const captionPara = body.appendParagraph(img.desc);
+        captionPara.setFontSize(10);
+        captionPara.setForegroundColor('#636e72');
+        captionPara.setItalic(true);
+        captionPara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+      }
+      
+      body.appendParagraph('');
+      
+      // 圖片之間的分隔
+      if (index < images.length - 1) {
+        const imgDivider = body.appendParagraph('• • •');
+        imgDivider.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+        imgDivider.setForegroundColor('#b2bec3');
+        body.appendParagraph('');
+      }
+    });
+    
+    // ====== 頁尾 ======
+    body.appendParagraph('');
+    
+    const footerLine = body.appendParagraph('✦ ═══════════════════════════════ ✦');
+    footerLine.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    footerLine.setForegroundColor('#6c5ce7');
+    
+    body.appendParagraph('');
+    
+    // 相簿連結
+    if (folderUrl) {
+      const albumLink = body.appendParagraph('📁 圖片相簿：' + folderUrl);
+      albumLink.setFontSize(10);
+      albumLink.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+      albumLink.setForegroundColor('#0984e3');
+      body.appendParagraph('');
+    }
+    
+    // 版權資訊
+    const copyright = body.appendParagraph(
+      '由「🎨 超級指令插畫生成器 Pro」自動生成\n' +
+      '© ' + new Date().getFullYear() + ' Made with ❤️ and AI'
+    );
+    copyright.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    copyright.setFontSize(9);
+    copyright.setForegroundColor('#b2bec3');
+    
+    // 移動文件到資料夾
+    const docFile = DriveApp.getFileById(doc.getId());
+    docFile.moveTo(mainFolder);
+    
+    // 設定為可分享
+    docFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    const docUrl = doc.getUrl();
+    
+    return jsonResponse({
+      success: true,
+      message: `✅ 插畫圖鑑「${docName}」已建立`,
+      docName: docName,
+      docUrl: docUrl,
+      docId: doc.getId(),
+      imageCount: images.length,
+      styleCount: styles.length
+    });
+    
+  } catch (error) {
+    console.error('建立圖鑑錯誤:', error);
+    return jsonResponse({ success: false, error: error.toString() });
+  }
+}
+
+// ============================================
+// 💬 發送 LINE 通知
+// ============================================
+
+function handleSendNotification(data) {
+  const customMessage = data.message;
+  const results = data.results || {};
+  
+  if (!CONFIG.LINE_CHANNEL_ACCESS_TOKEN || CONFIG.LINE_CHANNEL_ACCESS_TOKEN === 'your-line-channel-access-token') {
+    return jsonResponse({ success: false, error: 'LINE Channel Access Token 未設定' });
+  }
+  
+  if (!CONFIG.LINE_USER_ID || CONFIG.LINE_USER_ID === 'your-line-user-id') {
+    return jsonResponse({ success: false, error: 'LINE User ID 未設定' });
+  }
+  
+  try {
+    let message = customMessage;
+    
+    // 如果沒有自訂訊息，使用預設格式
+    if (!message) {
+      message = buildNotificationMessage(data, results);
+    }
+    
+    const payload = {
+      to: CONFIG.LINE_USER_ID,
+      messages: [{
+        type: 'text',
+        text: message
+      }]
+    };
+    
+    const options = {
+      method: 'post',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + CONFIG.LINE_CHANNEL_ACCESS_TOKEN
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+    
+    const response = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', options);
+    const responseCode = response.getResponseCode();
+    
+    if (responseCode === 200) {
+      return jsonResponse({ 
+        success: true, 
+        message: '✅ LINE 通知已發送'
+      });
+    } else {
+      const result = JSON.parse(response.getContentText());
+      return jsonResponse({ 
+        success: false, 
+        error: result.message || 'LINE API 回應碼: ' + responseCode 
+      });
+    }
+    
+  } catch (error) {
+    console.error('LINE 通知錯誤:', error);
+    return jsonResponse({ success: false, error: error.toString() });
+  }
+}
+
+// 建立通知訊息
+function buildNotificationMessage(data, results) {
+  const subject = data.subject || '未命名主題';
+  const images = data.images || [];
+  const styles = data.styles || [];
+  const model = data.model || 'Gemini';
+  
+  let message = `
+╔══════════════════════════════╗
+║  🎨 超級指令插畫生成完成！  ║
+╚══════════════════════════════╝
+
+📝 創作主題
+${subject.substring(0, 60)}${subject.length > 60 ? '...' : ''}
+
+📊 生成統計
+┣━ 🖼️ 圖片數量：${images.length} 張
+┣━ 🎭 風格種類：${styles.length} 種
+┗━ 🤖 使用模型：${model}
+
+⏰ 完成時間
+${formatDateTime(new Date(), true)}`;
+
+  // 加入連結
+  if (results.photos && results.photos.success) {
+    message += `
+
+📷 相簿位置
+${results.photos.folderUrl}`;
+  }
+  
+  if (results.book && results.book.success) {
+    message += `
+
+📚 插畫圖鑑
+${results.book.docUrl}`;
+  }
+
+  message += `
+
+✨ 感謝使用超級指令插畫生成器！`;
+
+  return message;
+}
+
+// ============================================
+// 🔄 完整流程
+// ============================================
+
+function handleFullProcess(data) {
+  const results = {
+    photos: null,
+    book: null,
+    notification: null
+  };
+  
+  const options = data.options || { photos: true, book: true, notification: true };
+  const startTime = new Date();
+  
+  console.log('🚀 開始完整流程...');
+  
+  // Step 1: 上傳到相簿
+  if (options.photos !== false) {
+    console.log('📷 Step 1: 上傳到相簿...');
+    try {
+      const photosResult = handleUploadToPhotos(data);
+      results.photos = JSON.parse(photosResult.getContent());
+      
+      // 傳遞資料夾 URL 給後續步驟
+      if (results.photos.success) {
+        data.folderUrl = results.photos.folderUrl;
+      }
+    } catch (e) {
+      results.photos = { success: false, error: e.toString() };
+    }
+  }
+  
+  // Step 2: 建立插畫圖鑑
+  if (options.book !== false) {
+    console.log('📚 Step 2: 建立插畫圖鑑...');
+    try {
+      const bookResult = handleCreateIllustrationBook(data);
+      results.book = JSON.parse(bookResult.getContent());
+    } catch (e) {
+      results.book = { success: false, error: e.toString() };
+    }
+  }
+  
+  // Step 3: 發送 LINE 通知
+  if (options.notification !== false) {
+    console.log('💬 Step 3: 發送 LINE 通知...');
+    
+    // 將結果傳給通知函數
+    data.results = results;
+    
+    try {
+      const notifyResult = handleSendNotification(data);
+      results.notification = JSON.parse(notifyResult.getContent());
+    } catch (e) {
+      results.notification = { success: false, error: e.toString() };
+    }
+  }
+  
+  const endTime = new Date();
+  const duration = (endTime - startTime) / 1000;
+  
+  console.log('✅ 完整流程完成，耗時 ' + duration + ' 秒');
+  
+  // 統計成功數
+  let successCount = 0;
+  let totalCount = 0;
+  
+  Object.keys(results).forEach(key => {
+    if (results[key]) {
+      totalCount++;
+      if (results[key].success) successCount++;
+    }
+  });
+  
+  return jsonResponse({
+    success: successCount === totalCount,
+    message: `✅ 完整流程執行完成 (${successCount}/${totalCount} 成功)`,
+    duration: duration + ' 秒',
+    results: results,
+    summary: {
+      photosUploaded: results.photos?.success ? results.photos.totalCount : 0,
+      bookCreated: results.book?.success ? true : false,
+      notificationSent: results.notification?.success ? true : false,
+      folderUrl: results.photos?.folderUrl || null,
+      docUrl: results.book?.docUrl || null
+    }
+  });
+}
+
+// ============================================
+// 🧪 測試功能
+// ============================================
+
+function handleTest(data) {
+  return jsonResponse({
+    success: true,
+    message: '🎨 連線測試成功！',
+    timestamp: new Date().toISOString(),
+    config: {
+      albumName: CONFIG.PHOTOS_ALBUM_NAME,
+      docTitlePrefix: CONFIG.DOC_TITLE_PREFIX,
+      lineConfigured: CONFIG.LINE_CHANNEL_ACCESS_TOKEN !== 'your-line-channel-access-token'
+    }
+  });
+}
+
+// ============================================
+// 🛠️ 工具函數
+// ============================================
+
+function getOrCreateFolder(name, parent) {
+  let folder;
+  
+  if (parent) {
+    const folders = parent.getFoldersByName(name);
+    if (folders.hasNext()) {
+      folder = folders.next();
+    } else {
+      folder = parent.createFolder(name);
+    }
+  } else {
+    const folders = DriveApp.getFoldersByName(name);
+    if (folders.hasNext()) {
+      folder = folders.next();
+    } else {
+      folder = DriveApp.createFolder(name);
+    }
+  }
+  
+  return folder;
+}
+
+function styleInfoTable(table) {
+  table.setBorderWidth(0);
+  
+  for (let i = 0; i < table.getNumRows(); i++) {
+    const row = table.getRow(i);
+    
+    // 標題欄
+    const labelCell = row.getCell(0);
+    labelCell.setBackgroundColor('#f8f9fa');
+    labelCell.setPaddingTop(10);
+    labelCell.setPaddingBottom(10);
+    labelCell.setPaddingLeft(16);
+    labelCell.setPaddingRight(16);
+    labelCell.setWidth(120);
+    labelCell.getChild(0).asParagraph().setBold(true).setFontSize(11);
+    
+    // 內容欄
+    const valueCell = row.getCell(1);
+    valueCell.setBackgroundColor('#ffffff');
+    valueCell.setPaddingTop(10);
+    valueCell.setPaddingBottom(10);
+    valueCell.setPaddingLeft(16);
+    valueCell.setPaddingRight(16);
+    valueCell.getChild(0).asParagraph().setFontSize(11);
+  }
+}
+
+function formatDateTime(date, detailed) {
+  if (detailed) {
+    return Utilities.formatDate(date, 'Asia/Taipei', 'yyyy/MM/dd HH:mm:ss');
+  }
+  return Utilities.formatDate(date, 'Asia/Taipei', 'yyyy-MM-dd_HH-mm');
+}
+
+function jsonResponse(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ============================================
+// 🧪 本地測試函數（在 GAS 編輯器中執行）
+// ============================================
+
+function testConnection() {
+  console.log('🔗 測試連線...');
+  const result = handleTest({});
+  console.log(JSON.parse(result.getContent()));
+}
+
+function testSendLineNotification() {
+  console.log('💬 測試 LINE 通知...');
+  
+  const result = handleSendNotification({
+    message: `
+🎨 超級指令插畫生成器測試通知
+
+這是一則測試訊息。
+如果您收到這則訊息，表示 LINE 通知功能正常運作！
+
+⏰ ${formatDateTime(new Date(), true)}`
+  });
+  
+  console.log(JSON.parse(result.getContent()));
+}
+
+function testCreateBook() {
+  console.log('📚 測試建立圖鑑...');
+  
+  const result = handleCreateIllustrationBook({
+    subject: '一隻戴著復古飛行員風鏡的柯基犬，坐在一架舊式雙翼飛機的開放式駕駛艙裡，背景是雲海和夕陽。',
+    model: 'Gemini 2.0 Flash',
+    styles: [
+      { name: '皮克斯 3D', icon: '🎬' },
+      { name: '吉卜力', icon: '🌿' },
+      { name: '水彩', icon: '💧' }
+    ],
+    images: [
+      { style: '皮克斯 3D', desc: '高品質 3D 動畫風格' },
+      { style: '吉卜力', desc: '宮崎駿風格水彩動畫' },
+      { style: '水彩', desc: '輕柔透明水彩畫風' }
+    ]
+  });
+  
+  console.log(JSON.parse(result.getContent()));
+}
+
+function testFullProcess() {
+  console.log('🔄 測試完整流程（不含圖片）...');
+  
+  const result = handleFullProcess({
+    subject: '測試主題：一隻可愛的柴犬在櫻花樹下',
+    model: 'Gemini 2.0 Flash',
+    styles: [
+      { name: '皮克斯 3D', icon: '🎬' },
+      { name: '吉卜力', icon: '🌿' }
+    ],
+    images: [
+      { style: '皮克斯 3D' },
+      { style: '吉卜力' }
+    ],
+    options: {
+      photos: false,  // 跳過上傳（沒有實際圖片數據）
+      book: true,
+      notification: true
+    }
+  });
+  
+  console.log(JSON.parse(result.getContent()));
+}

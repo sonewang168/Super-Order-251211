@@ -366,6 +366,9 @@
                                 <div class="spinner"></div>
                                 <span>✨ AI 建議</span>
                             </button>
+                            <button class="ai-suggest-btn" onclick="clearSubject()" style="background:linear-gradient(135deg,#ff6b6b,#ee5a24);margin-left:8px;">
+                                <span>🗑️ 清除</span>
+                            </button>
                         </div>
                         <textarea class="form-textarea" id="subjectInput" placeholder="例如：一隻戴著復古飛行員風鏡的柯基犬，坐在一架舊式雙翼飛機的開放式駕駛艙裡，背景是雲海和夕陽。"></textarea>
                         <div class="form-hint">💡 描述越詳細，生成效果越好</div>
@@ -424,9 +427,9 @@
                             <div class="model-radio"></div>
                             <div class="model-info">
                                 <div class="model-name">Gemini 2.0 Flash</div>
-                                <div class="model-desc">快速生成，適合大量圖片</div>
+                                <div class="model-desc">穩定可用，推薦使用</div>
                             </div>
-                            <span class="model-badge">快速</span>
+                            <span class="model-badge">推薦</span>
                         </label>
                         <label class="model-option" onclick="selectModel('gemini-2.5-flash')">
                             <input type="radio" name="model" value="gemini-2.5-flash">
@@ -441,10 +444,10 @@
                             <input type="radio" name="model" value="imagen-4">
                             <div class="model-radio"></div>
                             <div class="model-info">
-                                <div class="model-name">Imagen 4</div>
-                                <div class="model-desc">Google 最強圖像模型</div>
+                                <div class="model-name">Imagen 3</div>
+                                <div class="model-desc">專業圖像生成（付費 API）</div>
                             </div>
-                            <span class="model-badge best">最佳</span>
+                            <span class="model-badge best">PRO</span>
                         </label>
                     </div>
                 </div>
@@ -931,6 +934,12 @@
         // ============================================
         // AI 建議
         // ============================================
+        // 清除主題輸入
+        function clearSubject() {
+            document.getElementById('subjectInput').value = '';
+            showToast('已清除主題', 'info');
+        }
+
         async function getAISuggestion() {
             const apiKey = localStorage.getItem('geminiApiKey');
             if (!apiKey) {
@@ -1102,21 +1111,32 @@ Requirements:
 
             let modelEndpoint = '';
             let requestBody = {};
+            let requestHeaders = { 'Content-Type': 'application/json' };
 
             if (selectedModel === 'imagen-4') {
-                // Imagen 4 API (需要不同的端點)
-                modelEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+                // Imagen 3/4 API（使用 x-goog-api-key header）
+                modelEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict`;
+                requestHeaders['x-goog-api-key'] = apiKey;
                 requestBody = {
                     instances: [{ prompt: prompt }],
                     parameters: {
-                        sampleCount: 1,
-                        aspectRatio: "1:1"
+                        sampleCount: 1
+                    }
+                };
+            } else if (selectedModel === 'gemini-2.5-flash') {
+                // Gemini 2.5 Flash Preview
+                modelEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
+                requestBody = {
+                    contents: [{ 
+                        parts: [{ text: prompt }] 
+                    }],
+                    generationConfig: {
+                        responseModalities: ["TEXT", "IMAGE"]
                     }
                 };
             } else {
-                // Gemini 2.0/2.5 Flash
-                const model = selectedModel === 'gemini-2.5-flash' ? 'gemini-2.5-flash-preview-05-20' : 'gemini-2.0-flash-exp';
-                modelEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                // Gemini 2.0 Flash（預設）
+                modelEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
                 requestBody = {
                     contents: [{ 
                         parts: [{ text: prompt }] 
@@ -1129,7 +1149,7 @@ Requirements:
 
             const response = await fetch(modelEndpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: requestHeaders,
                 body: JSON.stringify(requestBody)
             });
 

@@ -444,8 +444,8 @@
                             <input type="radio" name="model" value="imagen-4">
                             <div class="model-radio"></div>
                             <div class="model-info">
-                                <div class="model-name">Imagen 3</div>
-                                <div class="model-desc">專業圖像生成（付費 API）</div>
+                                <div class="model-name">Imagen 4</div>
+                                <div class="model-desc">Google 最強圖像模型（付費）</div>
                             </div>
                             <span class="model-badge best">PRO</span>
                         </label>
@@ -1114,8 +1114,8 @@ Requirements:
             let requestHeaders = { 'Content-Type': 'application/json' };
 
             if (selectedModel === 'imagen-4') {
-                // Imagen 3/4 API（使用 x-goog-api-key header）
-                modelEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict`;
+                // Imagen 4 API（使用 x-goog-api-key header）
+                modelEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict`;
                 requestHeaders['x-goog-api-key'] = apiKey;
                 requestBody = {
                     instances: [{ prompt: prompt }],

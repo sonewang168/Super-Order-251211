@@ -1,10 +1,10 @@
 // ============================================
-// 🎨 超級指令插畫生成器 - GAS 後端 v2.0
+// 🎨 超級指令插畫生成器 - GAS 後端 v2.1
 // ============================================
 // 
 // 【功能】
-// ✅ 上傳圖片到 Google 相簿（相簿：超級指令插畫生成區）
-// ✅ 建立圖文並茂 Google Doc 圖鑑（超級指令插畫圖鑑）
+// ✅ 上傳圖片到 Google 相簿（相簿：超級指令插畫圖鑑）
+// ✅ 建立圖文並茂 Google Doc 圖鑑
 // ✅ 發送 LINE 完成通知
 // ✅ 完整流程一次執行
 // 
@@ -12,16 +12,26 @@
 // 1. 前往 https://script.google.com 建立新專案
 // 2. 貼上此程式碼
 // 3. 修改下方設定區
-// 4. 部署為網頁應用程式
-//    - 執行身分：我
-//    - 存取權：所有人
-// 5. 首次執行需授權 Google Photos API
+// 4. 點擊「appsscript.json」加入 OAuth scope（見下方說明）
+// 5. 部署為網頁應用程式
 // 
-// 【Google Photos API 設定】
-// 1. 前往 Google Cloud Console
-// 2. 啟用 Photos Library API
-// 3. 建立 OAuth 2.0 憑證
-// 4. 將 Client ID 和 Secret 填入下方
+// 【重要】appsscript.json 設定
+// 點擊左側「專案設定」→ 勾選「在編輯器中顯示 appsscript.json」
+// 然後修改 appsscript.json 加入：
+// {
+//   "timeZone": "Asia/Taipei",
+//   "dependencies": {},
+//   "exceptionLogging": "STACKDRIVER",
+//   "runtimeVersion": "V8",
+//   "oauthScopes": [
+//     "https://www.googleapis.com/auth/script.external_request",
+//     "https://www.googleapis.com/auth/photoslibrary",
+//     "https://www.googleapis.com/auth/photoslibrary.appendonly",
+//     "https://www.googleapis.com/auth/photoslibrary.sharing",
+//     "https://www.googleapis.com/auth/documents",
+//     "https://www.googleapis.com/auth/drive"
+//   ]
+// }
 // 
 // ============================================
 
@@ -38,14 +48,11 @@ const CONFIG = {
   LINE_USER_ID: 'your-line-user-id',
   
   // Google 相簿設定
-  PHOTOS_ALBUM_NAME: '超級指令插畫生成區',
+  PHOTOS_ALBUM_NAME: '超級指令插畫圖鑑',
   
   // Google Doc 設定
   DOC_TITLE_PREFIX: '超級指令插畫圖鑑',
-  DOCS_FOLDER_NAME: '插畫圖鑑收藏',
-  
-  // Google Drive 備份資料夾
-  DRIVE_BACKUP_FOLDER: '插畫備份'
+  DOCS_FOLDER_NAME: '插畫圖鑑收藏'
 };
 
 // ============================================
@@ -104,63 +111,233 @@ function doGet(e) {
 
 function handleUploadToPhotos(data) {
   const images = data.images || [];
-  const sessionName = data.sessionName || formatDateTime(new Date());
   
   if (images.length === 0) {
     return jsonResponse({ success: false, error: '沒有圖片資料' });
   }
   
   try {
-    // 由於 Google Photos API 需要 OAuth，這裡先上傳到 Drive 作為備份
-    // 並提供 Drive 連結（可透過 Drive 同步到相簿）
+    // 取得或建立相簿
+    const albumId = getOrCreateAlbum(CONFIG.PHOTOS_ALBUM_NAME);
     
-    const mainFolder = getOrCreateFolder(CONFIG.DRIVE_BACKUP_FOLDER);
-    const albumFolder = getOrCreateFolder(CONFIG.PHOTOS_ALBUM_NAME, mainFolder);
-    const sessionFolder = getOrCreateFolder(sessionName, albumFolder);
+    if (!albumId) {
+      return jsonResponse({ success: false, error: '無法建立相簿' });
+    }
     
-    const uploadedFiles = [];
+    const uploadedItems = [];
+    const uploadTokens = [];
     
+    // Step 1: 上傳每張圖片取得 upload token
     images.forEach((img, index) => {
       const fileName = `${img.style || 'illustration'}_${String(index + 1).padStart(2, '0')}.png`;
       
-      const blob = Utilities.newBlob(
-        Utilities.base64Decode(img.data),
-        'image/png',
-        fileName
-      );
-      
-      const file = sessionFolder.createFile(blob);
-      
-      // 設定為任何人可檢視（方便分享）
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      
-      uploadedFiles.push({
-        name: file.getName(),
-        url: file.getUrl(),
-        downloadUrl: 'https://drive.google.com/uc?export=download&id=' + file.getId(),
-        id: file.getId(),
-        style: img.style
-      });
+      try {
+        const uploadToken = uploadImageBytes(img.data, fileName);
+        if (uploadToken) {
+          uploadTokens.push({
+            token: uploadToken,
+            fileName: fileName,
+            style: img.style,
+            description: img.style || '超級指令插畫'
+          });
+        }
+      } catch (e) {
+        console.error('上傳圖片失敗:', e);
+      }
     });
     
-    const folderUrl = sessionFolder.getUrl();
+    // Step 2: 批次建立 media items 到相簿
+    if (uploadTokens.length > 0) {
+      const createdItems = batchCreateMediaItems(albumId, uploadTokens);
+      uploadedItems.push(...createdItems);
+    }
     
-    // 設定資料夾為可分享
-    sessionFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    // 取得相簿分享連結
+    const albumUrl = `https://photos.google.com/album/${albumId}`;
     
     return jsonResponse({
       success: true,
-      message: `✅ 已上傳 ${uploadedFiles.length} 張圖片到「${CONFIG.PHOTOS_ALBUM_NAME}」`,
+      message: `✅ 已上傳 ${uploadedItems.length} 張圖片到「${CONFIG.PHOTOS_ALBUM_NAME}」`,
       albumName: CONFIG.PHOTOS_ALBUM_NAME,
-      sessionName: sessionName,
-      folderUrl: folderUrl,
-      files: uploadedFiles,
-      totalCount: uploadedFiles.length
+      albumId: albumId,
+      albumUrl: albumUrl,
+      items: uploadedItems,
+      totalCount: uploadedItems.length
     });
     
   } catch (error) {
     console.error('上傳圖片錯誤:', error);
     return jsonResponse({ success: false, error: error.toString() });
+  }
+}
+
+// ============================================
+// 📷 Google Photos API 輔助函數
+// ============================================
+
+// 取得或建立相簿
+function getOrCreateAlbum(albumTitle) {
+  const token = ScriptApp.getOAuthToken();
+  
+  // 先搜尋現有相簿
+  try {
+    const listResponse = UrlFetchApp.fetch('https://photoslibrary.googleapis.com/v1/albums?pageSize=50', {
+      headers: { 'Authorization': 'Bearer ' + token },
+      muteHttpExceptions: true
+    });
+    
+    const listData = JSON.parse(listResponse.getContentText());
+    
+    if (listData.albums) {
+      for (const album of listData.albums) {
+        if (album.title === albumTitle) {
+          console.log('找到現有相簿:', album.id);
+          return album.id;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('搜尋相簿錯誤:', e);
+  }
+  
+  // 建立新相簿
+  try {
+    const createResponse = UrlFetchApp.fetch('https://photoslibrary.googleapis.com/v1/albums', {
+      method: 'post',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      payload: JSON.stringify({
+        album: { title: albumTitle }
+      }),
+      muteHttpExceptions: true
+    });
+    
+    const createData = JSON.parse(createResponse.getContentText());
+    
+    if (createData.id) {
+      console.log('建立新相簿:', createData.id);
+      return createData.id;
+    }
+  } catch (e) {
+    console.error('建立相簿錯誤:', e);
+  }
+  
+  return null;
+}
+
+// 上傳圖片位元組，取得 upload token
+function uploadImageBytes(base64Data, fileName) {
+  const token = ScriptApp.getOAuthToken();
+  
+  try {
+    const imageBytes = Utilities.base64Decode(base64Data);
+    
+    const response = UrlFetchApp.fetch('https://photoslibrary.googleapis.com/v1/uploads', {
+      method: 'post',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/octet-stream',
+        'X-Goog-Upload-File-Name': fileName,
+        'X-Goog-Upload-Protocol': 'raw'
+      },
+      payload: imageBytes,
+      muteHttpExceptions: true
+    });
+    
+    if (response.getResponseCode() === 200) {
+      return response.getContentText();
+    } else {
+      console.error('上傳失敗:', response.getContentText());
+      return null;
+    }
+  } catch (e) {
+    console.error('上傳錯誤:', e);
+    return null;
+  }
+}
+
+// 批次建立 media items
+function batchCreateMediaItems(albumId, uploadTokens) {
+  const token = ScriptApp.getOAuthToken();
+  const createdItems = [];
+  
+  // 每次最多 50 個
+  const batchSize = 50;
+  
+  for (let i = 0; i < uploadTokens.length; i += batchSize) {
+    const batch = uploadTokens.slice(i, i + batchSize);
+    
+    const newMediaItems = batch.map(item => ({
+      description: item.description,
+      simpleMediaItem: {
+        uploadToken: item.token,
+        fileName: item.fileName
+      }
+    }));
+    
+    try {
+      const response = UrlFetchApp.fetch('https://photoslibrary.googleapis.com/v1/mediaItems:batchCreate', {
+        method: 'post',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        payload: JSON.stringify({
+          albumId: albumId,
+          newMediaItems: newMediaItems
+        }),
+        muteHttpExceptions: true
+      });
+      
+      const data = JSON.parse(response.getContentText());
+      
+      if (data.newMediaItemResults) {
+        data.newMediaItemResults.forEach((result, index) => {
+          if (result.status && result.status.message === 'Success') {
+            createdItems.push({
+              id: result.mediaItem.id,
+              productUrl: result.mediaItem.productUrl,
+              fileName: batch[index].fileName,
+              style: batch[index].style
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.error('批次建立錯誤:', e);
+    }
+  }
+  
+  return createdItems;
+}
+
+// 分享相簿（取得分享連結）
+function shareAlbum(albumId) {
+  const token = ScriptApp.getOAuthToken();
+  
+  try {
+    const response = UrlFetchApp.fetch(`https://photoslibrary.googleapis.com/v1/albums/${albumId}:share`, {
+      method: 'post',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      payload: JSON.stringify({
+        sharedAlbumOptions: {
+          isCollaborative: false,
+          isCommentable: true
+        }
+      }),
+      muteHttpExceptions: true
+    });
+    
+    const data = JSON.parse(response.getContentText());
+    return data.shareInfo?.shareableUrl || null;
+  } catch (e) {
+    console.error('分享相簿錯誤:', e);
+    return null;
   }
 }
 
@@ -173,7 +350,7 @@ function handleCreateIllustrationBook(data) {
   const images = data.images || [];
   const styles = data.styles || [];
   const model = data.model || 'Gemini';
-  const folderUrl = data.folderUrl || '';
+  const folderUrl = data.albumUrl || '';
   
   try {
     // 取得或建立資料夾
@@ -481,7 +658,7 @@ ${formatDateTime(new Date(), true)}`;
     message += `
 
 📷 相簿位置
-${results.photos.folderUrl}`;
+${results.photos.albumUrl}`;
   }
   
   if (results.book && results.book.success) {
@@ -521,9 +698,9 @@ function handleFullProcess(data) {
       const photosResult = handleUploadToPhotos(data);
       results.photos = JSON.parse(photosResult.getContent());
       
-      // 傳遞資料夾 URL 給後續步驟
+      // 傳遞相簿 URL 給後續步驟
       if (results.photos.success) {
-        data.folderUrl = results.photos.folderUrl;
+        data.albumUrl = results.photos.albumUrl;
       }
     } catch (e) {
       results.photos = { success: false, error: e.toString() };
@@ -581,7 +758,7 @@ function handleFullProcess(data) {
       photosUploaded: results.photos?.success ? results.photos.totalCount : 0,
       bookCreated: results.book?.success ? true : false,
       notificationSent: results.notification?.success ? true : false,
-      folderUrl: results.photos?.folderUrl || null,
+      albumUrl: results.photos?.albumUrl || null,
       docUrl: results.book?.docUrl || null
     }
   });

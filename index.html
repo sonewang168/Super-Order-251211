@@ -611,13 +611,13 @@
                     <div class="field-status" id="lineStatus"></div>
                 </div>
 
-                <!-- Google OAuth 設定 (進階) -->
+                <!-- Google OAuth 設定 -->
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-icon gold">🔐</div>
+                        <div class="card-icon gold">📷</div>
                         <div>
-                            <div class="card-title">Google OAuth</div>
-                            <div class="card-subtitle">進階 - Google 相簿直連</div>
+                            <div class="card-title">Google 相簿</div>
+                            <div class="card-subtitle">上傳圖片到 Google Photos</div>
                         </div>
                     </div>
                     <div class="form-group">
@@ -626,13 +626,23 @@
                             <input type="password" class="form-input" id="googleClientId" placeholder="xxx.apps.googleusercontent.com">
                             <button class="toggle-visibility" onclick="toggleVisibility('googleClientId', this)">👁️</button>
                         </div>
-                        <div class="form-hint">⚠️ 目前透過 GAS + Drive 實現，此設定為預留</div>
+                        <div class="form-hint">💡 從 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--cyan);">Google Cloud Console</a> 取得</div>
                     </div>
                     <div class="btn-group">
                         <button class="btn btn-success btn-sm" onclick="saveField('google')">💾 儲存</button>
                         <button class="btn btn-danger btn-sm" onclick="clearField('google')">🗑️ 清除</button>
+                        <button class="btn btn-primary btn-sm" onclick="googleAuth()" style="background:linear-gradient(135deg,#4285F4,#34A853);">🔐 授權</button>
                     </div>
                     <div class="field-status" id="googleStatus"></div>
+                    <div style="margin-top:12px;padding:12px;background:var(--bg-input);border-radius:8px;font-size:11px;color:var(--text-dim);line-height:1.6;">
+                        <strong>📋 設定步驟：</strong><br>
+                        1. 前往 Google Cloud Console<br>
+                        2. 建立專案 → 啟用 Photos Library API<br>
+                        3. OAuth 同意畫面 → 外部 → 新增測試使用者<br>
+                        4. 憑證 → OAuth 用戶端 ID → 網頁應用程式<br>
+                        5. 授權的 JavaScript 來源：<code style="color:var(--cyan);">${window.location.origin}</code><br>
+                        6. 複製 Client ID 貼到上方 → 點擊授權
+                    </div>
                 </div>
 
                 <!-- 資料管理 -->
@@ -1166,16 +1176,21 @@ Requirements:
                 addLog('💾 本機下載已準備就緒（請至結果頁下載）', 'info');
             }
 
-            // 如果需要 GAS 服務
-            const needsGAS = outputOptions.photos || outputOptions.docs || outputOptions.line;
+            // Google 相簿（前端直接上傳）
+            if (outputOptions.photos) {
+                await uploadToGooglePhotos(usedStyles);
+            }
+
+            // 如果需要 GAS 服務（Doc、LINE）
+            const needsGAS = outputOptions.docs || outputOptions.line;
             
             if (needsGAS) {
                 if (!gasUrl || !gasSecret) {
-                    addLog('⚠️ GAS 設定未完成，跳過雲端功能', 'error');
+                    addLog('⚠️ GAS 設定未完成，跳過 Doc/LINE 功能', 'error');
                     return;
                 }
 
-                addLog('☁️ 開始執行雲端流程...', 'info');
+                addLog('☁️ 開始執行 GAS 流程...', 'info');
 
                 try {
                     const payload = {
@@ -1189,7 +1204,7 @@ Requirements:
                             data: img.data
                         })),
                         options: {
-                            photos: outputOptions.photos,
+                            photos: false,  // 相簿已用前端處理
                             book: outputOptions.docs,
                             notification: outputOptions.line
                         }
@@ -1206,12 +1221,7 @@ Requirements:
                     const result = await response.json();
 
                     if (result.success) {
-                        addLog('✅ 雲端流程完成！', 'success');
-                        
-                        if (result.results.photos?.success) {
-                            addLog(`📷 已上傳到「超級指令插畫生成區」`, 'success');
-                            addLog(`📷 相簿連結: ${result.results.photos.albumUrl}`, 'info');
-                        }
+                        addLog('✅ GAS 流程完成！', 'success');
                         
                         if (result.results.book?.success) {
                             addLog(`📚 已建立「超級指令插畫圖鑑」`, 'success');
@@ -1222,14 +1232,232 @@ Requirements:
                             addLog('💬 LINE 通知已發送', 'success');
                         }
                     } else {
-                        addLog('⚠️ 雲端流程部分失敗: ' + result.message, 'error');
+                        addLog('⚠️ GAS 流程部分失敗: ' + result.message, 'error');
                     }
 
                 } catch (error) {
                     console.error('GAS 錯誤:', error);
-                    addLog('❌ 雲端流程失敗: ' + error.message, 'error');
+                    addLog('❌ GAS 流程失敗: ' + error.message, 'error');
                 }
             }
+        }
+
+        // ============================================
+        // Google Photos 前端上傳（OAuth 2.0）
+        // ============================================
+        const GOOGLE_TOKEN_KEY = 'superOrder_googleToken';
+        const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/photoslibrary.appendonly https://www.googleapis.com/auth/photoslibrary.readonly';
+        let googleTokenClient = null;
+
+        // 取得已儲存的 Token
+        function getStoredGoogleToken() {
+            try {
+                const saved = localStorage.getItem(GOOGLE_TOKEN_KEY);
+                if (!saved) return null;
+                const tokenData = JSON.parse(saved);
+                const elapsed = (Date.now() - tokenData.savedAt) / 1000;
+                if (elapsed < tokenData.expiresIn - 60) {
+                    return tokenData.token;
+                }
+                return null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // 儲存 Token
+        function saveGoogleToken(token) {
+            const tokenData = {
+                token: token,
+                savedAt: Date.now(),
+                expiresIn: token.expires_in || 3600
+            };
+            localStorage.setItem(GOOGLE_TOKEN_KEY, JSON.stringify(tokenData));
+        }
+
+        // 初始化 Google Token Client
+        function initGoogleTokenClient() {
+            const clientId = localStorage.getItem('googleClientId');
+            if (!clientId) {
+                showToast('請先在設定頁輸入 Google Client ID', 'error');
+                return false;
+            }
+            
+            if (typeof google === 'undefined' || !google.accounts) {
+                showToast('Google API 尚未載入，請重新整理頁面', 'error');
+                return false;
+            }
+            
+            googleTokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: clientId,
+                scope: GOOGLE_SCOPES,
+                callback: (response) => {
+                    if (response.error) {
+                        showToast('授權失敗: ' + response.error, 'error');
+                        return;
+                    }
+                    saveGoogleToken(response);
+                    showToast('✅ Google 相簿授權成功！', 'success');
+                    showFieldStatus('googleStatus', '✅ 已授權 Google 相簿', 'success');
+                }
+            });
+            return true;
+        }
+
+        // Google 授權
+        function googleAuth() {
+            const token = getStoredGoogleToken();
+            if (token) {
+                showToast('Google 授權仍然有效', 'success');
+                return;
+            }
+            if (!initGoogleTokenClient()) return;
+            googleTokenClient.requestAccessToken({ prompt: 'consent' });
+        }
+
+        // 上傳到 Google 相簿
+        async function uploadToGooglePhotos(usedStyles) {
+            const token = getStoredGoogleToken();
+            if (!token) {
+                addLog('⚠️ 請先授權 Google 相簿（設定頁 → Google OAuth → 🔐 授權）', 'error');
+                return;
+            }
+
+            const albumName = '超級指令插畫圖鑑';
+            addLog('📷 開始上傳到 Google 相簿...', 'info');
+
+            try {
+                // Step 1: 取得或建立相簿
+                const albumId = await getOrCreatePhotosAlbum(token.access_token, albumName);
+                if (!albumId) {
+                    throw new Error('無法建立相簿');
+                }
+                addLog(`📁 相簿：${albumName}`, 'info');
+
+                let uploadCount = 0;
+
+                // Step 2: 逐張上傳
+                for (let i = 0; i < generatedImages.length; i++) {
+                    const img = generatedImages[i];
+                    const fileName = `${img.style}_${String(i + 1).padStart(2, '0')}.png`;
+
+                    try {
+                        // 上傳圖片位元組
+                        const base64Data = img.data;
+                        const binaryString = atob(base64Data);
+                        const bytes = new Uint8Array(binaryString.length);
+                        for (let j = 0; j < binaryString.length; j++) {
+                            bytes[j] = binaryString.charCodeAt(j);
+                        }
+                        const imageBlob = new Blob([bytes], { type: 'image/png' });
+
+                        const uploadResponse = await fetch('https://photoslibrary.googleapis.com/v1/uploads', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer ' + token.access_token,
+                                'Content-Type': 'application/octet-stream',
+                                'X-Goog-Upload-Content-Type': 'image/png',
+                                'X-Goog-Upload-Protocol': 'raw'
+                            },
+                            body: imageBlob
+                        });
+
+                        if (!uploadResponse.ok) {
+                            throw new Error('上傳失敗');
+                        }
+
+                        const uploadToken = await uploadResponse.text();
+
+                        // 建立媒體項目
+                        const createResponse = await fetch('https://photoslibrary.googleapis.com/v1/mediaItems:batchCreate', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer ' + token.access_token,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                albumId: albumId,
+                                newMediaItems: [{
+                                    description: `${img.style} - 超級指令插畫生成器`,
+                                    simpleMediaItem: {
+                                        fileName: fileName,
+                                        uploadToken: uploadToken
+                                    }
+                                }]
+                            })
+                        });
+
+                        if (createResponse.ok) {
+                            uploadCount++;
+                            addLog(`✅ ${fileName} 上傳成功`, 'success');
+                        }
+
+                    } catch (e) {
+                        addLog(`❌ ${fileName} 上傳失敗`, 'error');
+                    }
+
+                    // 避免 rate limit
+                    if (i < generatedImages.length - 1) {
+                        await sleep(500);
+                    }
+                }
+
+                const albumUrl = `https://photos.google.com/album/${albumId}`;
+                addLog(`📷 已上傳 ${uploadCount}/${generatedImages.length} 張到 Google 相簿`, 'success');
+                addLog(`🔗 相簿連結: ${albumUrl}`, 'info');
+
+            } catch (error) {
+                console.error('Google Photos 錯誤:', error);
+                if (error.message.includes('401') || error.message.includes('invalid')) {
+                    localStorage.removeItem(GOOGLE_TOKEN_KEY);
+                    addLog('❌ Google 授權已過期，請重新授權', 'error');
+                } else {
+                    addLog('❌ Google 相簿上傳失敗: ' + error.message, 'error');
+                }
+            }
+        }
+
+        // 取得或建立相簿
+        async function getOrCreatePhotosAlbum(accessToken, albumName) {
+            // 搜尋現有相簿
+            try {
+                const listResponse = await fetch('https://photoslibrary.googleapis.com/v1/albums?pageSize=50', {
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                });
+
+                if (listResponse.ok) {
+                    const listResult = await listResponse.json();
+                    const existingAlbum = listResult.albums?.find(a => a.title === albumName);
+                    if (existingAlbum) {
+                        return existingAlbum.id;
+                    }
+                }
+            } catch (e) {
+                console.error('搜尋相簿錯誤:', e);
+            }
+
+            // 建立新相簿
+            try {
+                const createResponse = await fetch('https://photoslibrary.googleapis.com/v1/albums', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + accessToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        album: { title: albumName }
+                    })
+                });
+
+                if (createResponse.ok) {
+                    const createResult = await createResponse.json();
+                    return createResult.id;
+                }
+            } catch (e) {
+                console.error('建立相簿錯誤:', e);
+            }
+
+            return null;
         }
 
         // ============================================
@@ -1649,9 +1877,6 @@ Requirements:
         // 舊函數保留相容性
         function saveApiKey() { saveField('apiKey'); }
         function saveLineSettings() { saveField('gas'); }
-        function googleAuth() {
-            showToast('Google OAuth 授權功能開發中...', 'info');
-        }
         
         function saveCustomStyles() {
             localStorage.setItem('customStyles', JSON.stringify(customStyles));

@@ -6,7 +6,45 @@
 2. 點擊「Create API Key」
 3. 複製 API Key
 
-## 2. 部署 GAS 後端（雲端功能）
+## 2. 設定 Google 相簿（前端 OAuth）
+
+### Step 1：建立 Google Cloud 專案
+1. 前往 [Google Cloud Console](https://console.cloud.google.com/)
+2. 點擊「建立專案」
+3. 名稱：`Super-Order-Photos`
+
+### Step 2：啟用 Photos Library API
+1. 左側選單 → API 和服務 → 程式庫
+2. 搜尋「**Photos Library API**」
+3. 點擊「**啟用**」
+
+### Step 3：設定 OAuth 同意畫面
+1. 左側選單 → OAuth 同意畫面
+2. 用戶類型：**外部**
+3. 填寫應用程式名稱
+4. 新增測試使用者：**你的 Gmail**
+5. 儲存
+
+### Step 4：建立 OAuth 用戶端 ID
+1. 左側選單 → 憑證
+2. 建立憑證 → **OAuth 用戶端 ID**
+3. 應用程式類型：**網頁應用程式**
+4. 授權的 JavaScript 來源：
+   - `http://localhost` （本機測試）
+   - `https://你的網站.netlify.app` （正式部署）
+5. 複製 **Client ID**
+
+### Step 5：在 APP 中設定
+1. 開啟 `index.html`
+2. 進入設定頁 ⚙️
+3. 在「Google 相簿」區塊貼上 Client ID
+4. 點擊「💾 儲存」
+5. 點擊「🔐 授權」
+6. 登入 Google 帳號並允許
+
+## 3. 部署 GAS 後端（Doc + LINE）
+
+如需使用「插畫圖鑑 Doc」和「LINE 通知」功能：
 
 ### Step 1：建立專案
 1. 前往 [Google Apps Script](https://script.google.com)
@@ -16,29 +54,7 @@
 1. 複製 `Code.gs` 內容
 2. 貼上到 GAS 編輯器
 
-### Step 3：設定 appsscript.json（重要！）
-1. 點擊左側「專案設定」⚙️
-2. 勾選「在編輯器中顯示 appsscript.json 資訊清單檔案」
-3. 回到編輯器，點擊左側的「appsscript.json」
-4. 用以下內容取代：
-
-```json
-{
-  "timeZone": "Asia/Taipei",
-  "dependencies": {},
-  "exceptionLogging": "STACKDRIVER",
-  "runtimeVersion": "V8",
-  "oauthScopes": [
-    "https://www.googleapis.com/auth/script.external_request",
-    "https://www.googleapis.com/auth/photoslibrary",
-    "https://www.googleapis.com/auth/photoslibrary.appendonly",
-    "https://www.googleapis.com/auth/documents",
-    "https://www.googleapis.com/auth/drive"
-  ]
-}
-```
-
-### Step 4：修改設定
+### Step 3：修改設定
 ```javascript
 const CONFIG = {
   SECURITY_SECRET: 'your-secret-key',      // 自訂密鑰
@@ -47,23 +63,16 @@ const CONFIG = {
 };
 ```
 
-### Step 5：部署
+### Step 4：部署
 1. 部署 → 新增部署作業
 2. 類型：網頁應用程式
 3. 執行身分：我
 4. 存取權：所有人
 5. 複製部署 URL
 
-### Step 6：授權
-首次執行會要求授權，請允許存取：
-- Google 相簿
-- Google 文件
-- Google 雲端硬碟
-
-## 3. 設定前端
-1. 開啟 `index.html`
-2. 進入設定頁
-3. 填入 API Key 和 GAS URL
+### Step 5：在 APP 中設定
+1. 進入設定頁 ⚙️
+2. 在「GAS 後端設定」區塊填入 URL 和密鑰
 
 ## 4. LINE 通知設定（選用）
 

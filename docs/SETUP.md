@@ -40,7 +40,7 @@
 3. 在「Google 相簿」區塊貼上 Client ID
 4. 點擊「💾 儲存」
 5. 點擊「🔐 授權」
-6. 登入 Google 帳號並允許
+6. 登入 Google 帳號並允許存取相簿
 
 ## 3. 部署 GAS 後端（Doc + LINE）
 

@@ -397,7 +397,10 @@
                     <div class="style-grid" id="styleGrid">
                         <!-- 動態生成 -->
                     </div>
-                    <button class="btn btn-secondary btn-sm" onclick="showCustomStyleModal()">➕ 新增自訂風格</button>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-secondary btn-sm" onclick="showCustomStyleModal()">➕ 新增自訂</button>
+                        <button class="btn btn-sm" onclick="clearSelectedStyles()" style="background:linear-gradient(135deg,#ff6b6b,#ee5a24);color:#fff;">🗑️ 清除選擇</button>
+                    </div>
                 </div>
 
                 <!-- 生成數量 -->
@@ -485,7 +488,7 @@
                             <div class="output-icon">📷</div>
                             <div class="output-info">
                                 <div class="output-name">Google 相簿</div>
-                                <div class="output-desc">上傳到「超級指令插畫生成區」</div>
+                                <div class="output-desc">上傳到「超級指令插畫圖鑑」</div>
                             </div>
                         </div>
                         <div class="output-option" onclick="toggleOutput(this, 'docs')">
@@ -788,7 +791,7 @@
                 </p>
                 
                 <p><strong>5️⃣ 選擇輸出方式</strong></p>
-                <p style="color:var(--text-dim);">可同時選擇多種輸出：本機下載、Google 相簿、Google 文件、LINE 通知。</p>
+                <p style="color:var(--text-dim);">可同時選擇多種輸出：本機下載、Google 相簿、插畫圖鑑、LINE 通知。</p>
             </div>
         </div>
     </div>
@@ -843,7 +846,20 @@
             { id: 'realistic', name: '寫實攝影', icon: '📸', desc: 'Photorealistic style with accurate lighting, textures, and details' },
             { id: 'low-poly', name: '低多邊形', icon: '📐', desc: 'Low poly 3D style with geometric shapes and flat shading' },
             { id: 'ink-wash', name: '水墨畫', icon: '🖌️', desc: 'Traditional Chinese ink wash painting with flowing brushstrokes' },
-            { id: 'vaporwave', name: '蒸氣波', icon: '🌴', desc: '90s vaporwave aesthetic with pink/blue gradients, Greek statues, and retro tech' }
+            { id: 'vaporwave', name: '蒸氣波', icon: '🌴', desc: '90s vaporwave aesthetic with pink/blue gradients, Greek statues, and retro tech' },
+            { id: 'art-deco', name: '裝飾藝術', icon: '🏛️', desc: 'Art Deco style with geometric patterns, gold accents, and luxury feel' },
+            { id: 'gothic', name: '哥德風格', icon: '🦇', desc: 'Dark gothic style with dramatic shadows, medieval architecture, and mysterious atmosphere' },
+            { id: 'fantasy', name: '奇幻風格', icon: '🧙', desc: 'Epic fantasy style with magical elements, dragons, and mythical creatures' },
+            { id: 'sci-fi', name: '科幻風格', icon: '🚀', desc: 'Futuristic sci-fi style with spaceships, aliens, and advanced technology' },
+            { id: 'cartoon', name: '美式卡通', icon: '🎬', desc: 'American cartoon style like Disney or Cartoon Network with exaggerated expressions' },
+            { id: 'comic-book', name: '美漫風格', icon: '💥', desc: 'Marvel/DC comic book style with bold lines, action poses, and speech bubbles' },
+            { id: 'stained-glass', name: '彩繪玻璃', icon: '🪟', desc: 'Stained glass window style with bold outlines and vibrant translucent colors' },
+            { id: 'graffiti', name: '塗鴉藝術', icon: '🎤', desc: 'Street graffiti style with spray paint effects, bold letters, and urban vibe' },
+            { id: 'vintage-poster', name: '復古海報', icon: '📜', desc: 'Vintage travel poster style with flat colors and retro typography' },
+            { id: 'neon', name: '霓虹燈光', icon: '💡', desc: 'Neon light style with glowing outlines and dark background' },
+            { id: 'clay-render', name: '黏土渲染', icon: '🧱', desc: 'Clay render style with soft shadows and matte material look' },
+            { id: 'isometric', name: '等距視角', icon: '🎮', desc: 'Isometric 3D style with 30-degree angle and game-like perspective' },
+            { id: 'baroque', name: '巴洛克', icon: '👑', desc: 'Baroque style with dramatic lighting, rich details, and ornate decorations' }
         ];
 
         let customStyles = [];
@@ -917,6 +933,14 @@
 
         function updateSelectedCount() {
             document.getElementById('selectedStyleCount').textContent = selectedStyles.length;
+        }
+
+        // 清除所有選擇的風格
+        function clearSelectedStyles() {
+            selectedStyles = [];
+            renderStyleGrid();
+            updateTotalImages();
+            showToast('已清除所有風格選擇', 'info');
         }
 
         // ============================================
@@ -1101,6 +1125,12 @@
                 
                 // 更新結果頁
                 renderResults();
+                
+                // 清除選擇的風格和指令（準備下一次生成）
+                selectedStyles = [];
+                renderStyleGrid();
+                updateTotalImages();
+                document.getElementById('subjectInput').value = '';
                 
                 showToast(`🎉 已生成 ${generatedImages.length} 張圖片`, 'success');
             } else {
@@ -1355,11 +1385,11 @@ Requirements:
             googleTokenClient.requestAccessToken({ prompt: 'consent' });
         }
 
-        // 上傳到 Google 相簿
+        // 上傳到 Google Drive（圖片 + 文件同一資料夾）
         async function uploadToGooglePhotos(usedStyles) {
             const token = getStoredGoogleToken();
             if (!token) {
-                addLog('⚠️ 請先授權 Google 相簿（設定頁 → Google OAuth → 🔐 授權）', 'error');
+                addLog('⚠️ 請先授權 Google（設定頁 → Google 相簿 → 🔐 授權）', 'error');
                 return;
             }
 
@@ -1367,7 +1397,7 @@ Requirements:
             addLog('📷 開始上傳到 Google 相簿...', 'info');
 
             try {
-                // Step 1: 取得或建立相簿
+                // Step 1: 取得或建立相簿（所有圖片放同一相簿）
                 const albumId = await getOrCreatePhotosAlbum(token.access_token, albumName);
                 if (!albumId) {
                     throw new Error('無法建立相簿');
@@ -1442,9 +1472,7 @@ Requirements:
                     }
                 }
 
-                const albumUrl = `https://photos.google.com/album/${albumId}`;
                 addLog(`📷 已上傳 ${uploadCount}/${generatedImages.length} 張到 Google 相簿`, 'success');
-                addLog(`🔗 相簿連結: ${albumUrl}`, 'info');
 
             } catch (error) {
                 console.error('Google Photos 錯誤:', error);
@@ -1457,7 +1485,7 @@ Requirements:
             }
         }
 
-        // 取得或建立相簿
+        // 取得或建立相簿（固定使用同一個相簿）
         async function getOrCreatePhotosAlbum(accessToken, albumName) {
             // 搜尋現有相簿
             try {
